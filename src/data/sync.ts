@@ -68,6 +68,7 @@ export class SyncEngine {
   private unsubscribeRealtime: (() => void) | null = null
   private detachWindow: (() => void) | null = null
   private started = false
+  private generation = 0
   private readonly db: PresenceDB
   private readonly remote: Remote | null
   private readonly options: SyncOptions
@@ -108,7 +109,10 @@ export class SyncEngine {
   async start(): Promise<void> {
     if (this.started || !this.remote) return
     this.started = true
+    const generation = ++this.generation
     const lastSync = await this.db.meta.get('lastPullAt')
+    // Arrêté pendant l'attente (démontage) : ne rien attacher.
+    if (!this.started || generation !== this.generation) return
     this.setState({ lastSyncAt: typeof lastSync?.value === 'string' ? lastSync.value : null })
 
     if (typeof window !== 'undefined') {
@@ -150,6 +154,7 @@ export class SyncEngine {
 
   stop(): void {
     this.started = false
+    this.generation++
     this.unsubscribeRealtime?.()
     this.unsubscribeRealtime = null
     this.detachWindow?.()
@@ -385,7 +390,7 @@ export class SyncEngine {
     }
     this.setState({
       online: error.kind === 'network' ? false : this.state.online,
-      lastError: error.kind === 'network' ? null : error.message,
+      lastError: error.kind === 'network' ? null : error.message.slice(0, 160),
     })
     this.scheduleRetry()
   }

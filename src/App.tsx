@@ -38,8 +38,8 @@ function AccessDenied() {
       <Button
         variant="primary"
         onClick={async () => {
-          await engine.clearLocalData()
           await signOut()
+          await engine.clearLocalData()
         }}
       >
         Se déconnecter
@@ -60,7 +60,9 @@ function Main() {
   // Première synchronisation réussie mais aucune donnée visible : RLS refuse.
   if (sync.mode === 'remote' && sync.lastSyncAt && !data.hydrated) return <AccessDenied />
 
-  const shownMonth = month ?? monthOf(clampDate(today, calc.settings.periodStart, calc.settings.periodEnd))
+  const { periodStart, periodEnd } = calc.settings
+  const wanted = month ?? monthOf(clampDate(today, periodStart, periodEnd))
+  const shownMonth = wanted < monthOf(periodStart) ? monthOf(periodStart) : wanted > monthOf(periodEnd) ? monthOf(periodEnd) : wanted
 
   switch (route) {
     case 'month':

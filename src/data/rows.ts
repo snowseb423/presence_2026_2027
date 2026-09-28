@@ -9,6 +9,18 @@ const nullableText = (value: unknown): string | null => (value == null || value 
 const num = (value: unknown): number => (typeof value === 'number' ? value : Number(value ?? 0))
 const nullableNum = (value: unknown): number | null => (value == null ? null : num(value))
 
+/** Tableau d'entiers : JSON ([1,2]) ou littéral Postgres (« {1,2} »). */
+function parseIntArray(value: unknown, fallback: number[]): number[] {
+  const items = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.replace(/[{}\s]/g, '').split(',').filter(Boolean)
+      : null
+  if (!items) return fallback
+  const numbers = items.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 7)
+  return numbers.length ? [...new Set(numbers)].sort((a, b) => a - b) : fallback
+}
+
 /** Tables Supabase miroitées en local. */
 export const REMOTE_TABLES: Record<MirrorTable, string> = {
   settings: 'settings',
@@ -23,7 +35,7 @@ export function toSettings(row: Json): Settings {
     hourlyRate: num(row.hourly_rate),
     hoursPerDay: num(row.hours_per_day),
     transportPerDay: num(row.transport_per_day),
-    workDays: Array.isArray(row.work_days) ? row.work_days.map(num).sort((a, b) => a - b) : [1, 2, 3, 4, 5],
+    workDays: parseIntArray(row.work_days, [1, 2, 3, 4, 5]),
     periodStart: text(row.period_start),
     periodEnd: text(row.period_end),
     employeeName: text(row.employee_name),

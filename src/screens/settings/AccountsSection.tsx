@@ -121,13 +121,14 @@ export function AccountsSection({ members, pending }: { members: Member[]; pendi
       ? `${pending} modification${pending > 1 ? 's' : ''} pas encore envoyée${pending > 1 ? 's' : ''} ser${pending > 1 ? 'ont' : 'a'} perdue${pending > 1 ? 's' : ''}. Se déconnecter quand même ?`
       : 'Se déconnecter de cet appareil ? Les données en cache y seront effacées.'
     if (!window.confirm(message)) return
+    // Retour à l'écran de connexion d'abord, pour ne pas afficher un état vide.
+    await signOut()
     await engine.clearLocalData()
     try {
       await caches?.delete('presence-data')
     } catch {
       /* Cache Storage indisponible */
     }
-    await signOut()
   }
 
   return (

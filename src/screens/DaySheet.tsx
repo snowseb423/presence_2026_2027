@@ -34,12 +34,13 @@ export function DaySheet({
   const day = date ? computeDay(date, calc) : null
   const savedComment = day?.override?.comment ?? ''
   const [comment, setComment] = useState(savedComment)
-  const [editing, setEditing] = useState(false)
+  const editing = useRef(false)
 
-  // Brouillon réinitialisé à l'ouverture, sans écraser une saisie en cours.
+  // Brouillon repris à l'ouverture ou quand la valeur enregistrée change,
+  // sans écraser une saisie en cours.
   useEffect(() => {
-    if (!editing) setComment(savedComment)
-  }, [date, savedComment, editing])
+    if (!editing.current) setComment(savedComment)
+  }, [date, savedComment])
 
   const saveComment = () => {
     if (date && comment.trim() !== savedComment) void actions.setComment(date, comment)
@@ -47,7 +48,7 @@ export function DaySheet({
 
   const close = () => {
     saveComment()
-    setEditing(false)
+    editing.current = false
     onClose()
   }
 
@@ -121,10 +122,12 @@ export function DaySheet({
           value={comment}
           disabled={!day.inPeriod}
           placeholder="Ex. : partie à 11 h, rendez-vous médical"
-          onFocus={() => setEditing(true)}
+          onFocus={() => {
+            editing.current = true
+          }}
           onChange={(event) => setComment(event.target.value)}
           onBlur={() => {
-            setEditing(false)
+            editing.current = false
             saveComment()
           }}
           className={`${inputClass} min-h-20 resize-none py-3`}
