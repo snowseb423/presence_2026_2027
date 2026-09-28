@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#2A211B" />
+    <title>Hors ligne · Présence</title>
+    <style>
+      :root {
+        --bg: #2a211b;
+        --ink: #f6ede4;
+        --ink-2: #d2bfae;
+        --accent: #c2410c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #110d0b;
+          --ink: #f3e9e0;
+          --ink-2: #bcab9c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: radial-gradient(120% 90% at 100% 0%, rgb(194 65 12 / 0.5) 0%, transparent 55%), var(--bg);
+        color: var(--ink);
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      main {
+        min-height: 100dvh;
+        max-width: 28rem;
+        margin: 0 auto;
+        padding: calc(env(safe-area-inset-top) + 3rem) 1.5rem calc(env(safe-area-inset-bottom) + 3rem);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 1rem;
+      }
+      h1 {
+        margin: 0;
+        font-size: 2.25rem;
+        line-height: 1.1;
+      }
+      p {
+        margin: 0;
+        color: var(--ink-2);
+        font-size: 1.0625rem;
+        line-height: 1.5;
+      }
+      button {
+        align-self: flex-start;
+        min-height: 2.75rem;
+        padding: 0 1.25rem;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+      }
+      button:focus-visible {
+        outline: 3px solid #f29a6c;
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+        <rect width="64" height="64" rx="16" fill="#C2410C" />
+        <rect x="17" y="13" width="9.5" height="38" rx="4.75" fill="#FDF7F1" />
+        <circle cx="35" cy="26" r="13" fill="#FDF7F1" />
+        <circle cx="35" cy="26" r="5.25" fill="#C2410C" />
+      </svg>
+      <h1>Pas de connexion</h1>
+      <p>
+        Présence n’a pas encore pu s’installer sur cet appareil. Ouvrez-la une première fois avec une connexion : elle
+        fonctionnera ensuite hors ligne, avec vos données en cache.
+      </p>
+      <button type="button" onclick="location.reload()">Réessayer</button>
+    </main>
+  </body>
+</html>

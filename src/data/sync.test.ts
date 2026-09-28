@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PresenceDB } from './db.ts'
 import { loadAppData, seedDefaults } from './mirror.ts'
 import type { Op } from './ops.ts'
-import { type RealtimeHandlers, type Remote, SyncError, type TableSnapshot } from './remote.ts'
+import { PULL_QUERIES, type RealtimeHandlers, type Remote, SyncError, type TableSnapshot } from './remote.ts'
 import { toOverride } from './rows.ts'
 import { SyncEngine } from './sync.ts'
 import type { MirrorTable } from './db.ts'
@@ -62,7 +62,7 @@ class FakeServer implements Remote {
   async fetchTable(table: MirrorTable): Promise<TableSnapshot> {
     if (!this.online) throw new SyncError('Failed to fetch', 'network')
     const rows = table === 'overrides' ? [...this.overrides.values()] : []
-    return { rows, fromCache: false, url: `https://x.supabase.co/rest/v1/${table}` }
+    return { rows, fromCache: false, url: `https://x.supabase.co/rest/v1/${PULL_QUERIES[table]}` }
   }
 
   subscribe(handlers: RealtimeHandlers) {
@@ -244,12 +244,14 @@ describe('lecture et temps réel', () => {
       date: '2026-10-21', statusCode: 'conge_paye', hoursOverride: null,
       comment: null, updatedAt: at(9), updatedBy: 'user-b',
     })
-    server.fetchTable = async (table) => ({ rows: [], fromCache: true, url: `https://x.supabase.co/rest/v1/${table}` })
+    server.fetchTable = async (table) => ({ rows: [], fromCache: true, url: `https://x.supabase.co/rest/v1/${PULL_QUERIES[table]}` })
     await engine.pullAll()
     expect(await effectiveStatus('2026-10-21')).toMatchObject({ statusCode: 'conge_paye' })
 
-    // Le service worker transmet ensuite la réponse fraîche.
-    await engine.applyRevalidated('https://x.supabase.co/rest/v1/attendance_overrides?select=*&order=date.asc', [])
+    // Une réponse fraîche non demandée par ce moteur (autre onglet) est ignorée.
+    await engine.applyRevalidated('https://x.supabase.co/rest/v1/holidays?select=*&other=1', [])
+    // Le service worker transmet ensuite la réponse fraîche demandée.
+    await engine.applyRevalidated(`https://x.supabase.co/rest/v1/${PULL_QUERIES.overrides}`, [])
     expect(await effectiveStatus('2026-10-21')).toBeUndefined()
   })
 

@@ -55,8 +55,10 @@ export function DataProvider({
     })
     // Réponses fraîches envoyées par le service worker après revalidation.
     const onMessage = (event: MessageEvent) => {
-      const data = event.data as { type?: string; url?: string; body?: unknown } | null
-      if (data?.type === 'presence:revalidated' && data.url) void engine.applyRevalidated(data.url, data.body)
+      const data = event.data as { type?: string; url?: string; body?: unknown; status?: number } | null
+      if (!data?.url) return
+      if (data.type === 'presence:revalidated') void engine.applyRevalidated(data.url, data.body)
+      if (data.type === 'presence:revalidation-failed') void engine.revalidationFailed(data.url, data.status ?? 0)
     }
     navigator.serviceWorker?.addEventListener('message', onMessage)
     return () => {

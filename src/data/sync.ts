@@ -8,7 +8,7 @@
 import { MIRROR_TABLES, type MirrorTable, type OutboxEntry, type PresenceDB } from './db.ts'
 import { applyMirrorUpdate, applyOpLocally, enqueue, localKey, rowUpdatedAt, tableOf } from './mirror.ts'
 import { type Op, isNewer } from './ops.ts'
-import { type RealtimeStatus, type Remote, SyncError, asSyncError, tableForUrl } from './remote.ts'
+import { type RealtimeStatus, type Remote, SyncError, asSyncError, classifyStatus, tableForUrl } from './remote.ts'
 import { ROW_MAPPERS, remoteKey } from './rows.ts'
 
 type Json = Record<string, unknown>
@@ -304,12 +304,24 @@ export class SyncEngine {
   /** Corps frais transmis par le service worker après revalidation. */
   async applyRevalidated(url: string, rows: unknown): Promise<void> {
     const table = tableForUrl(url)
-    if (!table || !Array.isArray(rows)) return
-    const requestedAt = this.pendingRevalidation.get(url) ?? Date.now() - 10_000
+    const requestedAt = this.pendingRevalidation.get(url)
+    // Seulement les lectures de ce moteur (pas celles d'un autre onglet).
+    if (!table || requestedAt === undefined || !Array.isArray(rows)) return
     this.pendingRevalidation.delete(url)
     await this.applySnapshot(table, rows as Json[], requestedAt)
     if (this.pendingRevalidation.size === 0) await this.markSynced()
     this.markReachable()
+  }
+
+  /** La revalidation par le service worker a échoué (ex. session expirée). */
+  async revalidationFailed(url: string, status: number): Promise<void> {
+    if (!this.pendingRevalidation.delete(url)) return
+    const error = new SyncError(`HTTP ${status}`, classifyStatus(status), status)
+    if (error.kind === 'auth' && (await this.options.refreshAuth?.())) {
+      void this.pullAll()
+      return
+    }
+    this.handleError(error)
   }
 
   /**
