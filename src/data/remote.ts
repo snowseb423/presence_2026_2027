@@ -59,6 +59,8 @@ export interface TableSnapshot {
 
 export interface Remote {
   execute(op: Op): Promise<MirrorUpdate>
+  /** URL de lecture complète d'une table (clé du cache du service worker). */
+  tableUrl(table: MirrorTable): string
   fetchTable(table: MirrorTable): Promise<TableSnapshot>
   subscribe(handlers: RealtimeHandlers): () => void
 }
@@ -111,6 +113,8 @@ function check<T extends Result>(result: T): T {
 }
 
 export function createSupabaseRemote(client: SupabaseClient, config: { url: string; key: string }): Remote {
+  const tableUrl = (table: MirrorTable) => `${config.url}/rest/v1/${PULL_QUERIES[table]}`
+
   async function currentHoliday(date: string): Promise<MirrorUpdate> {
     const { data } = check(await client.from('holidays').select('*').eq('date', date).maybeSingle())
     return { table: 'holidays', key: date, row: data ? toHoliday(data as Json) : null }
@@ -171,11 +175,13 @@ export function createSupabaseRemote(client: SupabaseClient, config: { url: stri
       }
     },
 
+    tableUrl,
+
     async fetchTable(table) {
       const { data } = await client.auth.getSession()
       const token = data.session?.access_token
       if (!token) throw new SyncError('Session absente', 'auth', 401)
-      const url = `${config.url}/rest/v1/${PULL_QUERIES[table]}`
+      const url = tableUrl(table)
       let response: Response
       try {
         response = await fetch(url, {

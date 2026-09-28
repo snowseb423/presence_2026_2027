@@ -283,22 +283,28 @@ export class SyncEngine {
   private async pullTables(): Promise<void> {
     const remote = this.remote!
     const requestedAt = Date.now()
+    // Enregistré AVANT l'envoi : le service worker peut transmettre le corps
+    // frais (revalidation) avant que la page ait fini de lire les réponses.
+    for (const table of MIRROR_TABLES) this.pendingRevalidation.set(remote.tableUrl(table), requestedAt)
     try {
       const snapshots = await Promise.all(MIRROR_TABLES.map(async (table) => [table, await remote.fetchTable(table)] as const))
       const neverSynced = !(await this.db.meta.get('lastPullAt'))
       for (const [table, snapshot] of snapshots) {
-        if (snapshot.fromCache) {
-          // Réponse du cache du service worker : il enverra la version fraîche.
-          this.pendingRevalidation.set(snapshot.url, requestedAt)
-          if (!neverSynced) continue
+        if (!snapshot.fromCache) {
+          this.pendingRevalidation.delete(snapshot.url)
+          await this.applySnapshot(table, snapshot.rows, requestedAt)
+          continue
         }
-        await this.applySnapshot(table, snapshot.rows, requestedAt)
+        // Réponse du cache du service worker, peut-être ancienne. Si le corps
+        // frais est déjà arrivé (attente levée), on l'ignore ; sinon on
+        // l'attend, et on ne s'en sert qu'au tout premier lancement.
+        if (neverSynced && this.pendingRevalidation.has(snapshot.url)) {
+          await this.applySnapshot(table, snapshot.rows, requestedAt)
+        }
       }
-      // Des réponses venues du cache ne prouvent pas que le serveur répond.
-      if (snapshots.every(([, snapshot]) => !snapshot.fromCache)) {
-        await this.markSynced()
-        this.markReachable()
-      }
+      // Seule une réponse du réseau prouve que le serveur répond.
+      if (snapshots.some(([, snapshot]) => !snapshot.fromCache)) this.markReachable()
+      if (this.pendingRevalidation.size === 0) await this.markSynced()
     } catch (raw) {
       const error = asSyncError(raw)
       if (error.kind === 'auth' && (await this.options.refreshAuth?.())) return

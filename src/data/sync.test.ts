@@ -59,10 +59,14 @@ class FakeServer implements Remote {
     throw new SyncError('non géré par le faux serveur', 'rejected', 400)
   }
 
+  tableUrl(table: MirrorTable): string {
+    return `https://x.supabase.co/rest/v1/${PULL_QUERIES[table]}`
+  }
+
   async fetchTable(table: MirrorTable): Promise<TableSnapshot> {
     if (!this.online) throw new SyncError('Failed to fetch', 'network')
     const rows = table === 'overrides' ? [...this.overrides.values()] : []
-    return { rows, fromCache: false, url: `https://x.supabase.co/rest/v1/${PULL_QUERIES[table]}` }
+    return { rows, fromCache: false, url: this.tableUrl(table) }
   }
 
   subscribe(handlers: RealtimeHandlers) {
@@ -253,6 +257,38 @@ describe('lecture et temps réel', () => {
     // Le service worker transmet ensuite la réponse fraîche demandée.
     await engine.applyRevalidated(`https://x.supabase.co/rest/v1/${PULL_QUERIES.overrides}`, [])
     expect(await effectiveStatus('2026-10-21')).toBeUndefined()
+  })
+
+  it('applique un corps frais du service worker arrivé avant la réponse en cache', async () => {
+    await engine.pullAll() // première synchronisation, par le réseau
+    const fresh = {
+      date: '2026-10-23', status_code: 'conge_paye', hours_override: null,
+      comment: null, updated_by: 'user-b', updated_at: at(9),
+    }
+    server.fetchTable = async (table) => {
+      const url = server.tableUrl(table)
+      // Le service worker a déjà revalidé et transmis la version fraîche…
+      if (table === 'overrides') await engine.applyRevalidated(url, [fresh])
+      // … avant que la page ne lise la réponse en cache, plus ancienne.
+      return { rows: [], fromCache: true, url }
+    }
+    await engine.pullAll()
+    expect(await effectiveStatus('2026-10-23')).toMatchObject({ statusCode: 'conge_paye' })
+  })
+
+  it('au premier lancement, une réponse en cache ne remplace pas un corps frais déjà reçu', async () => {
+    const fresh = {
+      date: '2026-10-26', status_code: 'absence_non_payee', hours_override: null,
+      comment: null, updated_by: 'user-b', updated_at: at(9),
+    }
+    const stale = { ...fresh, status_code: 'demi_journee', updated_at: at(1) }
+    server.fetchTable = async (table) => {
+      const url = server.tableUrl(table)
+      if (table === 'overrides') await engine.applyRevalidated(url, [fresh])
+      return { rows: table === 'overrides' ? [stale] : [], fromCache: true, url }
+    }
+    await engine.pullAll()
+    expect(await effectiveStatus('2026-10-26')).toMatchObject({ statusCode: 'absence_non_payee' })
   })
 
   it('rejoue les événements reçus pendant la lecture par-dessus l’instantané', async () => {
