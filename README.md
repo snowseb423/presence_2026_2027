@@ -219,6 +219,8 @@ npx playwright install chromium   # une fois
 npm run test:e2e                  # 9 scénarios dans Chromium à 375 px
 ```
 
+- **GitHub Actions** (`.github/workflows/ci.yml`) lance TypeScript, `npm test`, le
+  build et `npm run test:e2e` sur chaque pull request et chaque push sur `main`.
 - Les tests SQL exécutent les **vraies migrations** dans PGlite (Postgres en
   WebAssembly) avec un bouchon de l'environnement Supabase : RLS, garde
   d'inscription, conflits, idempotence du seed.

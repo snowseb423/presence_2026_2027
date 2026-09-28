@@ -12,8 +12,11 @@ export default defineConfig({
   expect: { timeout: 7_000 },
   fullyParallel: false,
   workers: 1,
-  reporter: [['list']],
+  // En CI : pas de test.only oublié, annotations GitHub sur les échecs.
+  forbidOnly: Boolean(process.env.CI),
+  reporter: process.env.CI ? [['github'], ['list']] : [['list']],
   use: {
+    trace: 'retain-on-failure',
     viewport: { width: 375, height: 812 },
     deviceScaleFactor: 2,
     isMobile: true,
