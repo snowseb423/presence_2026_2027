@@ -1,6 +1,7 @@
 // Faux Supabase pour les tests : REST (PostgREST), RPC last-write-wins,
-// Auth et Realtime (protocole Phoenix v2), le tout en mémoire.
-import type { BrowserContext, Page, WebSocketRoute } from '@playwright/test'
+// Auth (dont l'aller-retour par Google) et Realtime (protocole Phoenix v2),
+// le tout en mémoire.
+import type { BrowserContext, Page, Route, WebSocketRoute } from '@playwright/test'
 
 type Row = Record<string, unknown>
 
@@ -89,6 +90,12 @@ export class FakeSupabase {
   ]
   /** Appels RPC reçus, dans l'ordre. */
   rpcCalls: { fn: string; args: Row }[] = []
+  /** Connexion Google activée (réglages publics d'Auth). */
+  google = false
+  /** Compte choisi sur la page Google : refusé s'il n'est pas dans allowed_emails. */
+  googleEmail = USER.email
+  /** Départs vers Google reçus par /auth/v1/authorize. */
+  authorizeUrls: URL[] = []
   private sockets = new Set<WebSocketRoute>()
   private joined: { socket: WebSocketRoute; topic: string; ids: Map<string, number> }[] = []
 
@@ -126,6 +133,8 @@ export class FakeSupabase {
         })
       }
       if (url.pathname.startsWith('/auth/v1/')) {
+        if (url.pathname.endsWith('/settings')) return json({ external: { email: true, google: this.google } })
+        if (url.pathname.endsWith('/authorize')) return this.authorize(route, url)
         if (url.pathname.endsWith('/user')) return json(SESSION.user)
         return json(SESSION)
       }
@@ -184,6 +193,33 @@ export class FakeSupabase {
         return undefined
       })
     })
+  }
+
+  /**
+   * Aller-retour par Google, vu de l'app : Supabase renvoie vers redirect_to
+   * avec la session dans le fragment (flux implicite), ou avec l'erreur de la
+   * garde d'inscription si l'adresse du compte n'est pas autorisée.
+   */
+  private authorize(route: Route, url: URL) {
+    this.authorizeUrls.push(url)
+    const back = new URL(url.searchParams.get('redirect_to') ?? '')
+    const params = this.members.some(({ email }) => email === this.googleEmail)
+      ? new URLSearchParams({
+          access_token: ACCESS_TOKEN,
+          refresh_token: SESSION.refresh_token,
+          expires_in: '3600',
+          token_type: 'bearer',
+          provider_token: 'e2e-google-token',
+        })
+      : new URLSearchParams({
+          error: 'server_error',
+          error_code: 'unexpected_failure',
+          error_description: 'Database error saving new user',
+        })
+    // Supabase place une erreur à la fois dans la requête et dans le fragment.
+    if (params.has('error')) back.search = params.toString()
+    back.hash = params.toString()
+    return route.fulfill({ status: 302, headers: { location: back.toString() } })
   }
 
   private applyRpc(fn: string, args: Row): Row | null {

@@ -1,7 +1,8 @@
 // Tests de bout en bout (npm run test:e2e) sur les critères de validation.
 // - projet « local » : build sans Supabase, service worker actif (hors ligne) ;
 // - projet « remote » : build branché sur un faux Supabase simulé par les
-//   tests (REST, RPC, Realtime), service worker désactivé.
+//   tests (REST, RPC, Realtime), service worker désactivé ;
+// - projet « login » : même build, écran de connexion (email, Google).
 import { defineConfig } from '@playwright/test'
 
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined
@@ -29,6 +30,7 @@ export default defineConfig({
     { name: 'local', testMatch: /local\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:4173' } },
     { name: 'remote', testMatch: /remote\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:4174', serviceWorkers: 'block' } },
     { name: 'remote-sw', testMatch: /remote-sw\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:4174', serviceWorkers: 'allow' } },
+    { name: 'login', testMatch: /login\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:4174', serviceWorkers: 'block' } },
   ],
   webServer: [
     {

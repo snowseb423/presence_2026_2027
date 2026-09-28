@@ -1,9 +1,11 @@
-// Session Supabase (magic link ou code reçu par email), tolérante au hors
-// ligne : un utilisateur déjà connecté reste dans l'app, avec ses données
-// en cache, même si le jeton ne peut pas être renouvelé faute de réseau.
+// Session Supabase (magic link, code reçu par email ou compte Google),
+// tolérante au hors ligne : un utilisateur déjà connecté reste dans l'app,
+// avec ses données en cache, même si le jeton ne peut pas être renouvelé
+// faute de réseau.
 import type { AuthError } from '@supabase/supabase-js'
 import { type ReactNode, createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { AUTH_STORAGE_KEY, supabase } from '../data/supabase.ts'
+import { env } from '../env.ts'
 
 export interface AuthUser {
   id: string
@@ -21,6 +23,8 @@ interface AuthContextValue {
   state: AuthState
   sendLink(email: string): Promise<AuthResult>
   verifyCode(email: string, code: string): Promise<AuthResult>
+  /** Part vers la page Google ; le résultat n'arrive qu'en cas d'échec immédiat. */
+  signInWithGoogle(): Promise<AuthResult>
   signOut(): Promise<void>
 }
 
@@ -61,17 +65,36 @@ function initialState(): AuthState {
   return { status: 'loading' }
 }
 
+const OFFLINE_MESSAGE = 'Pas de connexion internet. Réessayez une fois en ligne.'
+
 export function describeAuthError(error: AuthError | Error): string {
   const status = 'status' in error ? (error.status as number | undefined) : undefined
   const code = 'code' in error ? String(error.code ?? '') : ''
   const message = error.message ?? ''
-  if (!status && /fetch|network|load failed/i.test(message)) return 'Pas de connexion internet. Réessayez une fois en ligne.'
+  if (!status && /fetch|network|load failed/i.test(message)) return OFFLINE_MESSAGE
   if (status === 429 || code.includes('rate_limit')) return 'Trop de demandes : patientez une minute avant de réessayer.'
   if (/database error|not allowed|non autorisée/i.test(message) || code === 'signup_disabled') {
     return 'Cette adresse n’est pas autorisée. Demandez à l’autre compte de l’ajouter dans les réglages.'
   }
   if (code === 'otp_expired' || /expired|invalid/i.test(message)) return 'Code invalide ou expiré. Demandez un nouvel email.'
   return message || 'Une erreur est survenue.'
+}
+
+/**
+ * Connexion Google activée dans Supabase (Authentication → Sign In /
+ * Providers) ? Lu dans les réglages publics de Supabase Auth : le bouton
+ * n'apparaît qu'une fois le fournisseur configuré, sans variable de plus.
+ */
+export async function isGoogleEnabled(): Promise<boolean> {
+  if (!supabase) return false
+  try {
+    const response = await fetch(`${env.supabaseUrl}/auth/v1/settings`, { headers: { apikey: env.supabaseKey } })
+    if (!response.ok) return false
+    const settings = (await response.json()) as { external?: { google?: boolean } }
+    return settings.external?.google === true
+  } catch {
+    return false
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -135,6 +158,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const signInWithGoogle = useCallback(async (): Promise<AuthResult> => {
+    if (!supabase) return { ok: false, message: 'Supabase n’est pas configuré.' }
+    if (!navigator.onLine) return { ok: false, message: OFFLINE_MESSAGE }
+    try {
+      // Le navigateur part vers Google puis revient sur l'app avec la session
+      // dans l'URL (flux implicite), lue au chargement par detectSessionInUrl.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+          // Choix du compte à chaque fois : le compte Google ouvert sur le
+          // téléphone n'est pas forcément l'adresse autorisée.
+          queryParams: { prompt: 'select_account' },
+        },
+      })
+      return error ? { ok: false, message: describeAuthError(error) } : { ok: true }
+    } catch (error) {
+      return { ok: false, message: describeAuthError(error as Error) }
+    }
+  }, [])
+
   const signOut = useCallback(async () => {
     writeCachedUser(null)
     if (supabase) {
@@ -152,7 +196,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(supabase ? { status: 'signedOut' } : initialState())
   }, [])
 
-  const value = useMemo(() => ({ state, sendLink, verifyCode, signOut }), [state, sendLink, verifyCode, signOut])
+  const value = useMemo(
+    () => ({ state, sendLink, verifyCode, signInWithGoogle, signOut }),
+    [state, sendLink, verifyCode, signInWithGoogle, signOut],
+  )
   return <AuthContext value={value}>{children}</AuthContext>
 }
 
