@@ -52,15 +52,18 @@ revalidation, envoie le corps frais à la page (`postMessage`). La page :
 │   ├── pwa-192x192.png  pwa-512x512.png  maskable-icon-512x512.png
 │   └── apple-touch-icon-180x180.png
 ├── scripts/
-│   ├── icon.svg                 # source des icônes
-│   └── generate-icons.mjs       # rendu PNG via Chromium
+│   ├── icon.svg                 # sources des icônes
+│   └── generate-icons.mjs       # rendu PNG (sharp)
+├── tests/                       # tests SQL (PGlite), parité seed, contrastes
+├── e2e/                         # Playwright : critères de validation à 375 px
+├── playwright.config.ts
 ├── supabase/
 │   ├── config.toml              # pour la CLI Supabase (optionnel)
 │   ├── migrations/
 │   │   ├── 20260928120000_schema.sql          # tables, RLS, RPC, triggers, realtime
 │   │   └── 20260928120100_reference_data.sql  # ligne settings + table des statuts
 │   ├── seed.sql                 # jours fériés 2026–2027
-│   └── tests/                   # tests SQL (Postgres local + bouchon auth Supabase)
+│   └── templates/magic_link.html # email avec lien + code
 └── src/
     ├── main.tsx  App.tsx  env.ts  sw.ts
     ├── styles/                  # tokens.css (clair/sombre), fonts.css, index.css

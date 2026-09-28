@@ -1,0 +1,182 @@
+@import "tailwindcss";
+@import "./fonts.css";
+@import "./tokens.css";
+
+/* Les couleurs suivent les tokens : pas besoin de variantes dark: dans le JSX. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-header: var(--header-bg);
+  --color-header-ink: var(--header-ink);
+  --color-header-ink-2: var(--header-ink-2);
+  --color-header-accent: var(--header-accent);
+
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-card: var(--elev-card);
+  --shadow-float: var(--elev-float);
+}
+
+@layer base {
+  html {
+    /* Débordement élastique iOS en haut : même couleur que le bandeau. */
+    background: var(--header-bg);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  button,
+  [role='button'],
+  summary {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Chiffres alignés partout où ils se comparent. */
+  table,
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  dialog {
+    color: inherit;
+  }
+
+  dialog::backdrop {
+    background: var(--scrim);
+  }
+}
+
+/* Feuille basse (dialog natif) */
+.sheet {
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 36rem;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 1.5rem);
+  padding: 0;
+  border: 0;
+  border-radius: 1.75rem 1.75rem 0 0;
+  background: var(--surface);
+  box-shadow: var(--elev-float);
+  overflow: hidden;
+  transition:
+    translate 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 200ms ease,
+    overlay 260ms allow-discrete,
+    display 260ms allow-discrete;
+  translate: 0 100%;
+}
+
+.sheet[open] {
+  translate: 0 0;
+}
+
+@starting-style {
+  .sheet[open] {
+    translate: 0 100%;
+  }
+}
+
+.sheet::backdrop {
+  opacity: 0;
+  transition:
+    opacity 260ms ease,
+    overlay 260ms allow-discrete,
+    display 260ms allow-discrete;
+}
+
+.sheet[open]::backdrop {
+  opacity: 1;
+}
+
+@starting-style {
+  .sheet[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+@media (min-width: 40rem) {
+  .sheet {
+    margin: auto;
+    border-radius: 1.75rem;
+  }
+}
+
+/* Lueur terre de Sienne du bandeau */
+.band {
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--header-glow) 0%, transparent 55%),
+    var(--header-bg);
+  color: var(--header-ink);
+}
+
+.toast-enter {
+  animation: toast-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
