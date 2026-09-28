@@ -32,7 +32,9 @@ les saisies partent dès que le réseau revient.
 
 ## 1. Démarrage rapide
 
-Prérequis : Node.js 20.19 ou plus récent (22 recommandé).
+Prérequis : Node.js 22 (22.12 ou plus récent) ou 24. La version est bornée
+dans `package.json` (`engines`) : Vercel construit avec Node 24 et ne passera
+pas tout seul à une nouvelle version majeure.
 
 ```bash
 npm install
