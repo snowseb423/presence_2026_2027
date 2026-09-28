@@ -1,7 +1,9 @@
 # Dépendances et builds
 node_modules/
 dist/
+dist-e2e/
 dev-dist/
+dist-e2e/
 coverage/
 *.tsbuildinfo
 

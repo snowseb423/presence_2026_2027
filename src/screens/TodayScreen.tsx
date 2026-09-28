@@ -59,6 +59,7 @@ export function TodayScreen({ data, calc, today }: { data: AppData; calc: CalcCo
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <span
+          data-testid="day-status"
           className="inline-flex min-h-9 items-center gap-2 rounded-full bg-surface px-3.5 text-[0.9375rem] font-bold text-ink"
           style={statusVars(day.rule.colorToken)}
         >
@@ -72,7 +73,9 @@ export function TodayScreen({ data, calc, today }: { data: AppData; calc: CalcCo
       </div>
       <p className="mt-5 font-display font-extrabold leading-none tracking-tight">
         <span className="mr-1.5 align-[0.9em] text-2xl text-header-ink-2">Rs</span>
-        <span className="num text-[4rem]">{amount}</span>
+        <span className="num text-[4rem]" data-testid="day-amount">
+          {amount}
+        </span>
       </p>
       <p className="mt-2 text-[0.9375rem] text-header-ink-2">{formula(day, calc.settings)}</p>
       {!isToday ? (
