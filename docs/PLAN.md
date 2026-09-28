@@ -17,9 +17,9 @@ insécable U+202F entre les milliers).
 | Jours par défaut | recalculés côté client, jamais stockés | base minuscule, un férié corrigé se propage tout seul |
 | Montants | module pur `src/domain`, calcul en centimes entiers | pas d'erreur d'arrondi flottant, testable sans React |
 | Temps réel | Supabase Realtime (Postgres Changes, RLS appliquée) | < 1 s en pratique |
-| Auth | magic link + code à 6 chiffres du même email | sur iOS, le lien s'ouvre dans Safari et non dans l'app installée : le code règle ce cas |
+| Auth | magic link + code à 6 chiffres du même email ; « Continuer avec Google » (OAuth Supabase, flux implicite) si le fournisseur est activé | sur iOS, le lien s'ouvre dans Safari et non dans l'app installée : le code règle ce cas ; Google évite d'attendre l'email |
 | Service worker | `injectManifest` (Workbox) écrit à la main | precache du shell, SWR sur les GET Supabase, page de repli |
-| Routage | 4 chemins (`/`, `/mois`, `/budget`, `/reglages`) sans dépendance | le hash reste libre pour le retour du magic link |
+| Routage | 4 chemins (`/`, `/mois`, `/budget`, `/reglages`) sans dépendance | le hash reste libre pour le retour du magic link et de Google |
 | Polices | Bricolage Grotesque (display) + Atkinson Hyperlegible Next (texte) auto-hébergées | offline garanti, chiffres tabulaires vérifiés dans les deux fontes |
 
 ### SWR sur les données sans données périmées
@@ -172,7 +172,7 @@ semaine, férié un dimanche, période complète = Rs 187 488 pour 336 jours.
 | Mois | `MonthNav` (bornée à la période), `CalendarGrid`, `Legend`, `MonthSummaryCard`, `DaySheet` (statut, forçage, commentaire, montant, dernier auteur) |
 | Budget | `PeriodTotals`, `YearSection`, `MonthBlock`, `ExportButtons` |
 | Réglages | `SettingsForm`, `WorkDaysPicker`, `StatusRulesEditor`, `HolidaysEditor` + `HolidaySheet`, `AccountsSection`, `InstallSection` (+ aide iOS), `ThemePicker`, `SyncDiagnostics` |
-| Auth | `LoginScreen` (email → lien + saisie du code) |
+| Auth | `LoginScreen` (« Continuer avec Google » si activé dans Supabase ; email → lien + saisie du code) |
 
 ## 6. Direction artistique
 

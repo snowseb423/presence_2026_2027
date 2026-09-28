@@ -15,7 +15,7 @@ les saisies partent dès que le réseau revient.
 
 - **Interface** en français, fuseau `Indian/Mauritius`, montants au format « Rs 12 276 ».
 - **Stack** : Vite, React, TypeScript, Tailwind CSS, Supabase (Postgres, Auth
-  par magic link, Realtime), vite-plugin-pwa (Workbox), Dexie (IndexedDB).
+  par magic link ou compte Google, Realtime), vite-plugin-pwa (Workbox), Dexie (IndexedDB).
 - **Architecture et choix** : voir [docs/PLAN.md](docs/PLAN.md).
 
 ## Sommaire
@@ -122,6 +122,39 @@ Dans **Authentication** :
 (`sb_publishable_…`), ou l'ancienne clé **anon** pour un projet plus ancien.
 La clé *secret / service_role* ne doit **jamais** être utilisée dans l'app.
 
+### 2.5 Connexion avec Google (facultatif)
+
+Le bouton **Continuer avec Google** apparaît de lui-même sur l'écran de
+connexion dès que le fournisseur Google est activé dans Supabase : ni variable
+d'environnement ni redéploiement. La connexion par email reste disponible.
+
+1. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)) :
+   créez un projet (ou reprenez-en un), puis ouvrez **Google Auth Platform**
+   (anciennement « Écran de consentement OAuth »).
+   - *Branding* : nom de l'app (« Présence ») et email d'assistance.
+   - *Audience* : type **Externe**, puis **Publier l'application**. L'app ne
+     demande que l'email et le profil : Google n'exige pas de validation, et
+     l'accès reste filtré par `allowed_emails`.
+   - *Clients* → **Créer un client**, type **Application Web** :
+     - *Origines JavaScript autorisées* : l'URL de l'app (ex. `https://presence.vercel.app`) ;
+     - *URI de redirection autorisés* : `https://<référence>.supabase.co/auth/v1/callback`
+       (l'adresse exacte est affichée dans Supabase, étape 2).
+   - Notez l'**ID client** et le **code secret** : copiez le secret dès la
+     création, la console ne le réaffiche pas.
+2. **Supabase → Authentication → Sign In / Providers → Google** : activez le
+   fournisseur, collez l'ID client (*Client IDs*) et le secret (*Client Secret*),
+   puis enregistrez. La *Callback URL* indiquée sur ce panneau est celle à
+   déclarer côté Google.
+3. Les *Redirect URLs* réglées en 2.3 servent aussi au retour de Google : rien à ajouter.
+4. **L'adresse du compte Google doit figurer dans `allowed_emails`** (2.2 ou
+   Réglages → Comptes), comme pour la connexion par email. Si c'est l'adresse
+   déjà utilisée, Supabase rattache Google au compte existant : même
+   utilisateur, même historique (« Modifié par … »).
+
+Google propose toujours de choisir le compte (utile si plusieurs comptes sont
+ouverts sur le téléphone) et affiche « <référence>.supabase.co » comme
+destination : c'est normal, le retour passe par Supabase.
+
 ## 3. Variables d'environnement
 
 Copiez `.env.example` en `.env` (fichier ignoré par git) :
@@ -171,7 +204,8 @@ et `/reglages` doivent renvoyer `index.html` : c'est prévu pour les deux héber
 
 **iPhone (Safari)** : ouvrez l'URL, touchez **Partager** puis **Sur l'écran
 d'accueil**, puis **Ajouter**. Lancez l'app depuis l'icône (plein écran, sans
-barre d'adresse), saisissez votre email et **le code reçu**.
+barre d'adresse), puis touchez **Continuer avec Google** (si activé, voir 2.5)
+ou saisissez votre email et **le code reçu**.
 
 **Android (Chrome)** : ouvrez l'URL, puis **Réglages → Installer l'app** dans
 Présence (ou menu ⋮ → *Installer l'application*). Le lien de l'email peut
@@ -216,9 +250,9 @@ Paramètres par défaut (modifiables dans **Réglages**) : Rs 170 / heure,
 ## 7. Tests et critères de validation
 
 ```bash
-npm test                          # 245 tests : calculs, formats, SQL, synchro, exports, contrastes
+npm test                          # 252 tests : calculs, formats, SQL, synchro, exports, connexion, contrastes
 npx playwright install chromium   # une fois
-npm run test:e2e                  # 9 scénarios dans Chromium à 375 px
+npm run test:e2e                  # 12 scénarios dans Chromium à 375 px
 ```
 
 - **GitHub Actions** (`.github/workflows/ci.yml`) lance TypeScript, `npm test`, le
@@ -226,7 +260,8 @@ npm run test:e2e                  # 9 scénarios dans Chromium à 375 px
 - Les tests SQL exécutent les **vraies migrations** dans PGlite (Postgres en
   WebAssembly) avec un bouchon de l'environnement Supabase : RLS, garde
   d'inscription, conflits, idempotence du seed.
-- Les tests e2e simulent Supabase (REST, RPC, Auth, Realtime) ; ils
+- Les tests e2e simulent Supabase (REST, RPC, Auth dont l'aller-retour par
+  Google, Realtime) ; ils
   construisent deux builds (mode local et mode synchronisé). Si Chromium est
   déjà installé ailleurs : `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/chemin/vers/chrome npm run test:e2e`.
 
@@ -270,6 +305,17 @@ npm run test:e2e                  # 9 scénarios dans Chromium à 375 px
   saisissez le code de l'email dans l'app installée.
 - **« Accès non autorisé » après connexion** : l'adresse n'est pas (ou plus)
   dans `allowed_emails`.
+- **Pas de bouton « Continuer avec Google »** : le fournisseur Google n'est pas
+  activé dans Supabase (2.5). L'app le vérifie à l'ouverture de l'écran de
+  connexion, réseau nécessaire.
+- **« Ce compte Google n'est pas autorisé »** : l'adresse du compte Google choisi
+  n'est pas dans `allowed_emails` ; ajoutez-la (2.2 ou Réglages → Comptes).
+- **Google affiche « Erreur 400 : redirect_uri_mismatch »** : l'URI de
+  redirection déclarée dans Google Cloud doit être exactement la *Callback URL*
+  de Supabase (`https://<référence>.supabase.co/auth/v1/callback`).
+- **Google sur iPhone, app installée** : la page Google s'ouvre dans une
+  fenêtre Safari par-dessus l'app. Si l'app n'est pas connectée une fois cette
+  fenêtre fermée, utilisez l'email et le code.
 - **Eid-Ul-Fitr 2027** : date à confirmer selon la lune ; corrigez-la dans
   Réglages → Jours fériés dès l'annonce officielle.
 - **Garde d'inscription** : si votre projet interdisait les triggers sur

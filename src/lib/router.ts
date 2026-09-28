@@ -1,5 +1,5 @@
 // Routeur minimal sur l'API History : quatre écrans, chemins lisibles.
-// (Le fragment d'URL reste libre pour le retour du magic link Supabase.)
+// (Le fragment d'URL reste libre pour le retour de Supabase : magic link ou Google.)
 import { useCallback, useSyncExternalStore } from 'react'
 
 export type Route = 'today' | 'month' | 'budget' | 'settings'
