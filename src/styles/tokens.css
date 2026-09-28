@@ -1,0 +1,214 @@
+/*
+ * Tokens de couleur des deux thèmes. Les contrastes des paires texte/fond
+ * sont vérifiés automatiquement (tests/contrast.test.ts) : AA pour tout le
+ * texte, 3:1 pour les pastilles de statut.
+ *
+ * Statuts : --st-<token>      pastille (forme colorée)
+ *           --st-<token>-ink  texte coloré
+ *           --st-<token>-soft fond teinté
+ */
+
+:root {
+  color-scheme: light;
+
+  --bg: #fdf7f1;
+  --surface: #ffffff;
+  --surface-2: #f8efe6;
+  --surface-3: #f1e3d6;
+  --border: #eaddd0;
+  --border-strong: #d8c4b1;
+
+  --ink: #2a211b;
+  --ink-2: #5c4b3f;
+  --ink-3: #766152;
+
+  --accent: #c2410c;
+  --accent-strong: #9a3412;
+  --accent-soft: #fce7da;
+  --on-accent: #ffffff;
+  --amber: #d97706;
+  --danger: #b91c1c;
+  --danger-soft: #fbe3e0;
+  --positive: #3f6212;
+  --positive-soft: #eef5e0;
+  --focus: #c2410c;
+
+  --header-bg: #2a211b;
+  --header-ink: #f6ede4;
+  --header-ink-2: #d2bfae;
+  --header-accent: #f5b48f;
+  --header-glow: rgb(194 65 12 / 0.55);
+
+  --elev-card: 0 1px 2px rgb(42 33 27 / 0.06), 0 12px 32px -18px rgb(42 33 27 / 0.28);
+  --elev-float: 0 -1px 0 rgb(42 33 27 / 0.04), 0 -12px 32px -20px rgb(42 33 27 / 0.3);
+  --scrim: rgb(27 22 20 / 0.5);
+
+  --st-olive: #619e0c; /* olive #65A30D assombri pour 3:1 sur le fond crème */
+  --st-olive-ink: #3f6212;
+  --st-olive-soft: #eef5e0;
+  --st-amber: #d57305; /* ambre #D97706 assombri pour 3:1 */
+  --st-amber-ink: #92400e;
+  --st-amber-soft: #fdf0d9;
+  --st-coral: #e4603f;
+  --st-coral-ink: #a2361f;
+  --st-coral-soft: #fde8e2;
+  --st-brick: #b91c1c;
+  --st-brick-ink: #991b1b;
+  --st-brick-soft: #fbe3e0;
+  --st-lagoon: #0f766e;
+  --st-lagoon-ink: #115e59;
+  --st-lagoon-soft: #dcf1ec;
+  --st-plum: #8e4a87;
+  --st-plum-ink: #74386f;
+  --st-plum-soft: #f5e7f2;
+  --st-slate: #64748b;
+  --st-slate-ink: #475569;
+  --st-slate-soft: #e9edf2;
+  --st-steel: #2f6690;
+  --st-steel-ink: #24527a;
+  --st-steel-soft: #e0ebf4;
+  --st-stone: #8f8680;
+  --st-stone-ink: #625a54;
+  --st-stone-soft: #f0ebe6;
+  --st-mist: #8f8680;
+  --st-mist-ink: #6e645c;
+  --st-mist-soft: #f6f1ec;
+}
+
+/* Sombre : préférence système, sauf choix explicite « clair » dans l'app. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #1b1614;
+    --surface: #262019;
+    --surface-2: #2f2720;
+    --surface-3: #3a3028;
+    --border: #3a2f27;
+    --border-strong: #4d3f34;
+
+    --ink: #f3e9e0;
+    --ink-2: #cdbdae;
+    --ink-3: #a8968a;
+
+    --accent: #c2410c;
+    --accent-strong: #f29a6c;
+    --accent-soft: #3b2419;
+    --on-accent: #ffffff;
+    --amber: #f59e0b;
+    --danger: #f59c9c;
+    --danger-soft: #3a1c1c;
+    --positive: #b5e07a;
+    --positive-soft: #26301a;
+    --focus: #f29a6c;
+
+    --header-bg: #110d0b;
+    --header-ink: #f3e9e0;
+    --header-ink-2: #bcab9c;
+  --header-accent: #f29a6c;
+    --header-glow: rgb(194 65 12 / 0.4);
+
+    --elev-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -18px rgb(0 0 0 / 0.7);
+    --elev-float: 0 -12px 32px -20px rgb(0 0 0 / 0.8);
+    --scrim: rgb(0 0 0 / 0.6);
+
+    --st-olive: #84cc16;
+    --st-olive-ink: #b5e07a;
+    --st-olive-soft: #26301a;
+    --st-amber: #f59e0b;
+    --st-amber-ink: #f8c572;
+    --st-amber-soft: #362a15;
+    --st-coral: #f4876c;
+    --st-coral-ink: #f7ae9c;
+    --st-coral-soft: #3a231d;
+    --st-brick: #ef4444;
+    --st-brick-ink: #f59c9c;
+    --st-brick-soft: #3a1c1c;
+    --st-lagoon: #2dd4bf;
+    --st-lagoon-ink: #7fddd0;
+    --st-lagoon-soft: #173331;
+    --st-plum: #c77dbb;
+    --st-plum-ink: #ddb0d4;
+    --st-plum-soft: #33222f;
+    --st-slate: #94a3b8;
+    --st-slate-ink: #c1cbd8;
+    --st-slate-soft: #262b33;
+    --st-steel: #5b9bd5;
+    --st-steel-ink: #a8c8e8;
+    --st-steel-soft: #1e2a36;
+    --st-stone: #857b72;
+    --st-stone-ink: #bdb3ac;
+    --st-stone-soft: #2c2622;
+    --st-mist: #7a7068;
+    --st-mist-ink: #a39a92;
+    --st-mist-soft: #2a2420;
+  }
+}
+
+/* Choix explicite « sombre » : mêmes valeurs que ci-dessus. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #1b1614;
+  --surface: #262019;
+  --surface-2: #2f2720;
+  --surface-3: #3a3028;
+  --border: #3a2f27;
+  --border-strong: #4d3f34;
+
+  --ink: #f3e9e0;
+  --ink-2: #cdbdae;
+  --ink-3: #a8968a;
+
+  --accent: #c2410c;
+  --accent-strong: #f29a6c;
+  --accent-soft: #3b2419;
+  --on-accent: #ffffff;
+  --amber: #f59e0b;
+  --danger: #f59c9c;
+  --danger-soft: #3a1c1c;
+  --positive: #b5e07a;
+  --positive-soft: #26301a;
+  --focus: #f29a6c;
+
+  --header-bg: #110d0b;
+  --header-ink: #f3e9e0;
+  --header-ink-2: #bcab9c;
+  --header-accent: #f29a6c;
+  --header-glow: rgb(194 65 12 / 0.4);
+
+  --elev-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -18px rgb(0 0 0 / 0.7);
+  --elev-float: 0 -12px 32px -20px rgb(0 0 0 / 0.8);
+  --scrim: rgb(0 0 0 / 0.6);
+
+  --st-olive: #84cc16;
+  --st-olive-ink: #b5e07a;
+  --st-olive-soft: #26301a;
+  --st-amber: #f59e0b;
+  --st-amber-ink: #f8c572;
+  --st-amber-soft: #362a15;
+  --st-coral: #f4876c;
+  --st-coral-ink: #f7ae9c;
+  --st-coral-soft: #3a231d;
+  --st-brick: #ef4444;
+  --st-brick-ink: #f59c9c;
+  --st-brick-soft: #3a1c1c;
+  --st-lagoon: #2dd4bf;
+  --st-lagoon-ink: #7fddd0;
+  --st-lagoon-soft: #173331;
+  --st-plum: #c77dbb;
+  --st-plum-ink: #ddb0d4;
+  --st-plum-soft: #33222f;
+  --st-slate: #94a3b8;
+  --st-slate-ink: #c1cbd8;
+  --st-slate-soft: #262b33;
+  --st-steel: #5b9bd5;
+  --st-steel-ink: #a8c8e8;
+  --st-steel-soft: #1e2a36;
+  --st-stone: #857b72;
+  --st-stone-ink: #bdb3ac;
+  --st-stone-soft: #2c2622;
+  --st-mist: #7a7068;
+  --st-mist-ink: #a39a92;
+  --st-mist-soft: #2a2420;
+}

@@ -75,6 +75,11 @@ function dayNumber(day: number): string {
   return day === 1 ? '1er' : String(day)
 }
 
+/** « sept. » */
+export function monthShort(date: IsoDate): string {
+  return MONTHS_SHORT[Number(date.slice(5, 7)) - 1]!
+}
+
 export function weekdayName(date: IsoDate): string {
   return WEEKDAYS[isoWeekday(date) - 1]!
 }
