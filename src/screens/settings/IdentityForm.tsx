@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { nowIso } from '../../data/commands.ts'
 import { useEngine } from '../../data/DataProvider.tsx'
 import { isValidEmail } from '../../data/members.ts'
@@ -8,6 +8,7 @@ import type { Settings } from '../../domain/types.ts'
 import { useToast } from '../../ui/Toaster.tsx'
 import { Card, Field, Select, inputClass, textareaClass } from '../../ui/controls.tsx'
 import { SaveBar } from './SaveBar.tsx'
+import { useSettingsDraft } from './useSettingsDraft.ts'
 
 /** Réglages de la fiche de paie saisis en texte (la date d'entrée : date ou vide). */
 type IdentityKey =
@@ -95,16 +96,6 @@ function toDraft(settings: Settings, fields: readonly FieldSpec[]): Draft {
   return Object.fromEntries(fields.map(({ key }) => [key, settings[key] ?? '']))
 }
 
-function sameDraft(a: Draft, b: Draft): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
-}
-
-/** Réglages de référence et saisie en cours : un seul état, modifié d'un bloc. */
-interface FormState {
-  base: Settings
-  draft: Draft
-}
-
 function validate(draft: Draft, fields: readonly FieldSpec[]): { values: SettingsPatch; errors: Errors } {
   const values: Record<string, string | null> = {}
   const errors: Errors = {}
@@ -125,20 +116,9 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
   const engine = useEngine()
   const toast = useToast()
   const id = useId()
-  const [form, setForm] = useState<FormState>(() => ({ base: settings, draft: toDraft(settings, fields) }))
+  // Réglages reçus (autre téléphone, synchronisation) : repris si rien n'est en cours.
+  const { draft, dirty, edit, reset, saved: markSaved } = useSettingsDraft(settings, (next) => toDraft(next, fields))
   const [submitted, setSubmitted] = useState(false)
-  const { draft } = form
-  const dirty = !sameDraft(draft, toDraft(form.base, fields))
-
-  // Réglages reçus (autre téléphone, synchronisation, premier lancement) :
-  // repris seulement si rien n'est en cours de saisie. La décision se prend
-  // sur l'état courant, au moment où React applique la mise à jour : une
-  // frappe arrivée en même temps n'est jamais effacée.
-  useEffect(() => {
-    setForm((current) =>
-      sameDraft(current.draft, toDraft(current.base, fields)) ? { base: settings, draft: toDraft(settings, fields) } : current,
-    )
-  }, [settings, fields])
 
   const { values, errors } = validate(draft, fields)
   const shown = submitted ? errors : {}
@@ -152,10 +132,8 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
       if (values[key] !== settings[key]) (patch as Record<string, unknown>)[key] = values[key]
     }
     if (Object.keys(patch).length) await engine.commit({ kind: 'settings.patch', patch, at: nowIso() })
-    // Valeurs normalisées (espaces, majuscules) : le formulaire n'est plus
-    // modifié, sauf si la saisie a continué pendant l'enregistrement.
-    const next = { ...settings, ...values }
-    setForm((current) => ({ base: next, draft: sameDraft(current.draft, sent) ? toDraft(next, fields) : current.draft }))
+    // Valeurs normalisées (espaces, majuscules) reprises dans le formulaire.
+    markSaved(sent, { ...settings, ...values })
     setSubmitted(false)
     toast({ message: saved })
   }
@@ -176,7 +154,7 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
           const fieldId = `${id}-${field.key}`
           const value = draft[field.key] ?? ''
           const error = shown[field.key]
-          const set = (next: string) => setForm((current) => ({ ...current, draft: { ...current.draft, [field.key]: next } }))
+          const set = (next: string) => edit((current) => ({ ...current, [field.key]: next }))
           const common = {
             id: fieldId,
             value,
@@ -236,7 +214,7 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
         <SaveBar
           dirty={dirty}
           onCancel={() => {
-            setForm({ base: settings, draft: toDraft(settings, fields) })
+            reset()
             setSubmitted(false)
           }}
         />

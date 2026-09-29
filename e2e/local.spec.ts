@@ -82,6 +82,19 @@ test('budget : Rs 187 488 pour 336 jours, puis octobre à Rs 10 602 avec 3 cong�
   await expect(october).toContainText('Rs 12 276')
 })
 
+test('réglages saisis dès l’ouverture : rien n’est effacé par l’initialisation', async ({ page }) => {
+  await page.goto('/reglages')
+  await page.getByLabel('Nom de l’employée').fill('Marie')
+  await page.getByLabel('Taux horaire').fill('180')
+  await page.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0)
+
+  await page.getByRole('link', { name: 'Aujourd’hui' }).click()
+  await expect(page.getByText('Aujourd’hui · Marie')).toBeVisible()
+  // 3 h × Rs 180 + Rs 48 de transport.
+  await expect(page.getByTestId('day-amount')).toHaveText('588')
+})
+
 test('fiche de paie : identités et cotisations dans Réglages, net du mois, PDF téléchargé', async ({ page }) => {
   await page.goto('/reglages')
   const employee = page.getByRole('form', { name: 'Employée' })

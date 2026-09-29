@@ -317,7 +317,7 @@ Cotisations par défaut, pour un employé de maison (taux publiés par la MRA,
 ```bash
 npm test                          # 282 tests : calculs, fiche de paie, formats, SQL, synchro, exports (dont PDF), connexion, contrastes
 npx playwright install chromium   # une fois
-npm run test:e2e                  # 14 scénarios dans Chromium à 375 px
+npm run test:e2e                  # 15 scénarios dans Chromium à 375 px
 ```
 
 - **GitHub Actions** (`.github/workflows/ci.yml`) lance TypeScript, `npm test`, le
