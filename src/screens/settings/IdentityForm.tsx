@@ -99,6 +99,12 @@ function sameDraft(a: Draft, b: Draft): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
+/** Réglages de référence et saisie en cours : un seul état, modifié d'un bloc. */
+interface FormState {
+  base: Settings
+  draft: Draft
+}
+
 function validate(draft: Draft, fields: readonly FieldSpec[]): { values: SettingsPatch; errors: Errors } {
   const values: Record<string, string | null> = {}
   const errors: Errors = {}
@@ -119,18 +125,20 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
   const engine = useEngine()
   const toast = useToast()
   const id = useId()
-  const [base, setBase] = useState(settings)
-  const [draft, setDraft] = useState(() => toDraft(settings, fields))
+  const [form, setForm] = useState<FormState>(() => ({ base: settings, draft: toDraft(settings, fields) }))
   const [submitted, setSubmitted] = useState(false)
-  const dirty = !sameDraft(draft, toDraft(base, fields))
+  const { draft } = form
+  const dirty = !sameDraft(draft, toDraft(form.base, fields))
 
-  // Modification reçue de l'autre téléphone : on la reprend si rien n'est en cours.
+  // Réglages reçus (autre téléphone, synchronisation, premier lancement) :
+  // repris seulement si rien n'est en cours de saisie. La décision se prend
+  // sur l'état courant, au moment où React applique la mise à jour : une
+  // frappe arrivée en même temps n'est jamais effacée.
   useEffect(() => {
-    if (!dirty) {
-      setBase(settings)
-      setDraft(toDraft(settings, fields))
-    }
-  }, [settings]) // `dirty` volontairement absent : on ne réagit qu'aux réglages reçus
+    setForm((current) =>
+      sameDraft(current.draft, toDraft(current.base, fields)) ? { base: settings, draft: toDraft(settings, fields) } : current,
+    )
+  }, [settings, fields])
 
   const { values, errors } = validate(draft, fields)
   const shown = submitted ? errors : {}
@@ -138,15 +146,16 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
   async function save() {
     setSubmitted(true)
     if (Object.keys(errors).length) return
+    const sent = draft
     const patch: SettingsPatch = {}
     for (const { key } of fields) {
       if (values[key] !== settings[key]) (patch as Record<string, unknown>)[key] = values[key]
     }
     if (Object.keys(patch).length) await engine.commit({ kind: 'settings.patch', patch, at: nowIso() })
-    // Valeurs normalisées (espaces, majuscules) : le formulaire n'est plus modifié.
+    // Valeurs normalisées (espaces, majuscules) : le formulaire n'est plus
+    // modifié, sauf si la saisie a continué pendant l'enregistrement.
     const next = { ...settings, ...values }
-    setBase(next)
-    setDraft(toDraft(next, fields))
+    setForm((current) => ({ base: next, draft: sameDraft(current.draft, sent) ? toDraft(next, fields) : current.draft }))
     setSubmitted(false)
     toast({ message: saved })
   }
@@ -167,7 +176,7 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
           const fieldId = `${id}-${field.key}`
           const value = draft[field.key] ?? ''
           const error = shown[field.key]
-          const set = (next: string) => setDraft((d) => ({ ...d, [field.key]: next }))
+          const set = (next: string) => setForm((current) => ({ ...current, draft: { ...current.draft, [field.key]: next } }))
           const common = {
             id: fieldId,
             value,
@@ -227,7 +236,7 @@ export function IdentityForm({ kind, settings }: { kind: keyof typeof FORMS; set
         <SaveBar
           dirty={dirty}
           onCancel={() => {
-            setDraft(toDraft(settings, fields))
+            setForm({ base: settings, draft: toDraft(settings, fields) })
             setSubmitted(false)
           }}
         />
