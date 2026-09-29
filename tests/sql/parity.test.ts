@@ -22,7 +22,14 @@ describe('parité seed SQL ↔ src/domain/defaults.ts', async () => {
       select hourly_rate::float8 as "hourlyRate", hours_per_day::float8 as "hoursPerDay",
              transport_per_day::float8 as "transportPerDay", work_days::int[] as "workDays",
              period_start::text as "periodStart", period_end::text as "periodEnd",
-             employee_name as "employeeName"
+             employee_name as "employeeName", employee_full_name as "employeeFullName",
+             employee_address as "employeeAddress", employee_nic as "employeeNic",
+             employee_job_title as "employeeJobTitle", employee_hire_date::text as "employeeHireDate",
+             employee_payment_method as "employeePaymentMethod", employee_bank_account as "employeeBankAccount",
+             employer_name as "employerName", employer_address as "employerAddress",
+             employer_phone as "employerPhone", employer_email as "employerEmail",
+             employer_registration as "employerRegistration", pay_day::int as "payDay",
+             round_contributions as "roundContributions", contributions
       from public.settings`)
     const { updatedAt: _a, updatedBy: _b, ...expected } = DEFAULT_SETTINGS
     expect(rows).toEqual([expected])

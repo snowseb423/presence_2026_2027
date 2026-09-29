@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { nowIso } from '../../data/commands.ts'
 import { useEngine } from '../../data/DataProvider.tsx'
 import type { SettingsPatch } from '../../data/ops.ts'
@@ -6,7 +6,9 @@ import { diffDays, isIsoDate } from '../../domain/dates.ts'
 import { WEEKDAY_INITIALS, formatHours, formatNumber, parseDecimal } from '../../domain/format.ts'
 import type { Settings, StatusRule } from '../../domain/types.ts'
 import { useToast } from '../../ui/Toaster.tsx'
-import { Button, Card, Field, inputClass } from '../../ui/controls.tsx'
+import { Card, Field, inputClass } from '../../ui/controls.tsx'
+import { SaveBar } from './SaveBar.tsx'
+import { useSettingsDraft } from './useSettingsDraft.ts'
 
 const WEEKDAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
 
@@ -34,10 +36,6 @@ function toDraft(settings: Settings): Draft {
     periodStart: settings.periodStart,
     periodEnd: settings.periodEnd,
   }
-}
-
-function sameDraft(a: Draft, b: Draft): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 function validate(draft: Draft): { values: Omit<SettingsPatch, never> | null; errors: Errors } {
@@ -110,29 +108,21 @@ export function SettingsForm({ settings, rules }: { settings: Settings; rules: S
   const engine = useEngine()
   const toast = useToast()
   const id = useId()
-  const [base, setBase] = useState(settings)
-  const [draft, setDraft] = useState(() => toDraft(settings))
+  // Modification reçue de l'autre téléphone : reprise si rien n'est en cours.
+  const { draft, dirty, edit, reset, saved } = useSettingsDraft(settings, toDraft)
   const [rescale, setRescale] = useState(true)
   const [submitted, setSubmitted] = useState(false)
-  const dirty = !sameDraft(draft, toDraft(base))
-
-  // Modification reçue de l'autre téléphone : on la reprend si rien n'est en cours.
-  useEffect(() => {
-    if (!dirty) {
-      setBase(settings)
-      setDraft(toDraft(settings))
-    }
-  }, [settings]) // `dirty` volontairement absent : on ne réagit qu'aux réglages reçus
 
   const { values, errors } = validate(draft)
   const shown = submitted ? errors : {}
   const newHours = parseDecimal(draft.hoursPerDay)
   const hoursChanged = newHours !== null && newHours > 0 && newHours !== settings.hoursPerDay
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }))
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => edit((d) => ({ ...d, [key]: value }))
 
   async function save() {
     setSubmitted(true)
     if (!values) return
+    const sent = draft
     const at = nowIso()
     const patch: SettingsPatch = {}
     for (const key of Object.keys(values) as (keyof SettingsPatch)[]) {
@@ -147,7 +137,7 @@ export function SettingsForm({ settings, rules }: { settings: Settings; rules: S
         await engine.commit({ kind: 'statusRule.patch', code: rule.code, patch: { paidHours }, at })
       }
     }
-    setBase({ ...settings, ...values })
+    saved(sent, { ...settings, ...values })
     setSubmitted(false)
     toast({ message: 'Réglages enregistrés' })
   }
@@ -216,7 +206,10 @@ export function SettingsForm({ settings, rules }: { settings: Settings; rules: S
                   aria-pressed={on}
                   aria-label={WEEKDAY_NAMES[index]}
                   onClick={() =>
-                    set('workDays', on ? draft.workDays.filter((d) => d !== day) : [...draft.workDays, day].sort())
+                    edit((d) => ({
+                      ...d,
+                      workDays: d.workDays.includes(day) ? d.workDays.filter((x) => x !== day) : [...d.workDays, day].sort(),
+                    }))
                   }
                   className={`min-h-11 rounded-xl border-2 font-bold transition-colors ${
                     on ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface text-ink-2'
@@ -256,35 +249,17 @@ export function SettingsForm({ settings, rules }: { settings: Settings; rules: S
           <p className="-mt-2 text-sm font-bold text-danger">{shown.periodStart ?? shown.periodEnd}</p>
         ) : null}
 
-        <div
-          className={
-            dirty
-              ? 'sticky bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-10 -mx-2 flex items-center justify-end gap-2 rounded-2xl bg-surface/95 p-2 shadow-card backdrop-blur-md'
-              : 'flex'
-          }
+        <SaveBar
+          dirty={dirty}
+          onCancel={() => {
+            reset()
+            setSubmitted(false)
+          }}
         >
-          {dirty ? (
-            <>
-              <p className="mr-auto pl-2 text-sm leading-tight text-ink-2">Non enregistré</p>
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setDraft(toDraft(settings))
-                  setSubmitted(false)
-                }}
-              >
-                Annuler
-              </Button>
-              <Button variant="primary" type="submit">
-                Enregistrer
-              </Button>
-            </>
-          ) : (
-            <p className="text-sm text-ink-2">
-              {formatNumber(settings.hoursPerDay)} h × Rs {formatNumber(settings.hourlyRate)} + Rs {formatNumber(settings.transportPerDay)} de transport par jour presté.
-            </p>
-          )}
-        </div>
+          <p className="text-sm text-ink-2">
+            {formatNumber(settings.hoursPerDay)} h × Rs {formatNumber(settings.hourlyRate)} + Rs {formatNumber(settings.transportPerDay)} de transport par jour presté.
+          </p>
+        </SaveBar>
       </form>
     </Card>
   )

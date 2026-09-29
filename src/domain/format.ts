@@ -39,14 +39,15 @@ export function formatNumber(value: number, maxDecimals = 2): string {
 
 /**
  * Montant en roupies à partir de centimes : « Rs 12 276 », « Rs 1 234,50 ».
- * `signed` ajoute « + » devant un montant positif (écarts).
+ * `signed` ajoute « + » devant un montant positif (écarts) ; `fixed` garde
+ * toujours deux décimales (« Rs 9 690,00 », fiche de paie).
  */
-export function formatRs(cents: number, options: { signed?: boolean } = {}): string {
+export function formatRs(cents: number, options: { signed?: boolean; fixed?: boolean } = {}): string {
   const rounded = Math.round(cents)
   const abs = Math.abs(rounded)
   const integer = groupThousands(String(Math.floor(abs / 100)))
   const fraction = abs % 100
-  const amount = `Rs${NBSP}${integer}${fraction ? `,${String(fraction).padStart(2, '0')}` : ''}`
+  const amount = `Rs${NBSP}${integer}${fraction || options.fixed ? `,${String(fraction).padStart(2, '0')}` : ''}`
   if (rounded < 0) return `${MINUS}${amount}`
   if (rounded > 0 && options.signed) return `+${amount}`
   return amount
@@ -60,6 +61,11 @@ export function formatRupees(rupees: number): string {
 /** « 3 h », « 1,5 h ». */
 export function formatHours(hours: number): string {
   return `${formatNumber(hours)}${NBSP}h`
+}
+
+/** « 1,5 % », « 4,5 % ». */
+export function formatPercent(rate: number): string {
+  return `${formatNumber(rate, 3)}${NBSP}%`
 }
 
 export function capitalize(text: string): string {

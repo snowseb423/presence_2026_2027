@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { MirrorTable } from './db.ts'
 import type { MirrorUpdate } from './mirror.ts'
 import type { Op, SettingsPatch } from './ops.ts'
-import { REMOTE_TABLES, toHoliday, toOverride, toSettings, toStatusRule } from './rows.ts'
+import { REMOTE_TABLES, SETTINGS_COLUMNS, toHoliday, toOverride, toSettings, toStatusRule } from './rows.ts'
 
 type Json = Record<string, unknown>
 
@@ -87,15 +87,12 @@ export function tableForUrl(url: string): MirrorTable | null {
   return entry ? (entry[0] as MirrorTable) : null
 }
 
-function settingsColumns(patch: SettingsPatch): Json {
+export function settingsColumns(patch: SettingsPatch): Json {
   const columns: Json = {}
-  if (patch.hourlyRate !== undefined) columns.hourly_rate = patch.hourlyRate
-  if (patch.hoursPerDay !== undefined) columns.hours_per_day = patch.hoursPerDay
-  if (patch.transportPerDay !== undefined) columns.transport_per_day = patch.transportPerDay
-  if (patch.workDays !== undefined) columns.work_days = patch.workDays
-  if (patch.periodStart !== undefined) columns.period_start = patch.periodStart
-  if (patch.periodEnd !== undefined) columns.period_end = patch.periodEnd
-  if (patch.employeeName !== undefined) columns.employee_name = patch.employeeName
+  for (const [key, column] of Object.entries(SETTINGS_COLUMNS)) {
+    const value = patch[key as keyof SettingsPatch]
+    if (value !== undefined) columns[column] = value
+  }
   return columns
 }
 

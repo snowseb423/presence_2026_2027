@@ -1,10 +1,12 @@
 // Données d'export (pures) : lignes journalières et récapitulatifs mensuels.
+import { monthOf } from '../domain/dates.ts'
 import { capitalize, formatDateNumeric, formatMonth, weekdayName } from '../domain/format.ts'
 import { type DayComputation, type MonthSummary, type Totals, daysOfMonth, periodMonths, summarizeMonth, sumTotals } from '../domain/pay.ts'
 import type { CalcContext, IsoMonth } from '../domain/types.ts'
 
 export type ExportScope = { kind: 'month'; month: IsoMonth } | { kind: 'period' }
-export type ExportFormat = 'csv' | 'xlsx'
+/** Tableurs (présence et montants) ou fiches de paie en PDF. */
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf'
 
 export function scopeMonths(calc: CalcContext, scope: ExportScope): IsoMonth[] {
   const all = periodMonths(calc.settings)
@@ -19,9 +21,13 @@ export function exportSummaries(calc: CalcContext, scope: ExportScope): MonthSum
   return scopeMonths(calc, scope).map((month) => summarizeMonth(month, calc))
 }
 
-export function fileBaseName(calc: CalcContext, scope: ExportScope): string {
+export function fileBaseName(calc: CalcContext, scope: ExportScope, format: ExportFormat = 'csv'): string {
+  const { periodStart, periodEnd } = calc.settings
+  if (format === 'pdf') {
+    return scope.kind === 'month' ? `fiche-de-paie-${scope.month}` : `fiches-de-paie-${monthOf(periodStart)}_${monthOf(periodEnd)}`
+  }
   if (scope.kind === 'month') return `presence-${scope.month}`
-  return `presence-${calc.settings.periodStart}_${calc.settings.periodEnd}`
+  return `presence-${periodStart}_${periodEnd}`
 }
 
 export function scopeTitle(calc: CalcContext, scope: ExportScope): string {

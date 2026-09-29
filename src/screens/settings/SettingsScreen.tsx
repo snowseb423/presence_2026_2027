@@ -6,7 +6,9 @@ import { AppShell } from '../../layout/AppShell.tsx'
 import { SectionTitle } from '../../ui/controls.tsx'
 import { AccountsSection } from './AccountsSection.tsx'
 import { AppSection } from './AppSection.tsx'
+import { ContributionsEditor } from './ContributionsEditor.tsx'
 import { HolidaysEditor } from './HolidaysEditor.tsx'
+import { IdentityForm } from './IdentityForm.tsx'
 import { SettingsForm } from './SettingsForm.tsx'
 import { StatusRulesEditor } from './StatusRulesEditor.tsx'
 
@@ -24,6 +26,19 @@ export function SettingsScreen({ data, calc }: { data: AppData; calc: CalcContex
     >
       <SectionTitle>Employée et tarifs</SectionTitle>
       <SettingsForm settings={calc.settings} rules={rules} />
+
+      <SectionTitle>Fiche de paie</SectionTitle>
+      <p className="-mt-1 mb-3 text-[0.9375rem] text-ink-2">Imprimé sur chaque fiche de paie (Budget → Fiche de paie).</p>
+      <div className="flex flex-col gap-3">
+        <IdentityForm kind="employee" settings={calc.settings} />
+        <IdentityForm kind="employer" settings={calc.settings} />
+      </div>
+
+      <SectionTitle>Cotisations</SectionTitle>
+      <p className="-mt-1 mb-3 text-[0.9375rem] text-ink-2">
+        Retenues sur le salaire et cotisations patronales. Taux révisés chaque année : vérifiez-les auprès de la MRA.
+      </p>
+      <ContributionsEditor calc={calc} />
 
       <SectionTitle>Statuts</SectionTitle>
       <p className="-mt-1 mb-3 text-[0.9375rem] text-ink-2">Heures payées et transport de chaque statut ; le montant par jour se met à jour.</p>

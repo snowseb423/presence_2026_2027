@@ -62,3 +62,21 @@ test('mode avion : les saisies attendent dans la file puis partent dans l’ordr
     .toEqual(['set_attendance 2026-10-12 conge_non_paye', 'set_attendance 2026-10-13 demi_journee'])
   await expect(page.getByRole('button', pill(/En ligne/))).toBeVisible({ timeout: 20_000 })
 })
+
+test('les informations de la fiche de paie partent vers Supabase, colonne par colonne', async ({ page }) => {
+  await page.goto('/reglages')
+  await expect(page.getByRole('button', pill(/En ligne, tout est synchronisé/))).toBeVisible({ timeout: 15_000 })
+
+  const employer = page.getByRole('form', { name: 'Employeur' })
+  await employer.getByLabel('Nom complet').fill('Famille Lefèvre')
+  await employer.getByLabel('N° d’employeur (ERN)').fill('e1234567')
+  await employer.getByRole('button', { name: 'Enregistrer' }).click()
+  await page.getByRole('switch', { name: 'Arrondir les cotisations à la roupie' }).click()
+
+  await expect
+    .poll(() => server.settings, { timeout: 10_000 })
+    .toMatchObject({ employer_name: 'Famille Lefèvre', employer_registration: 'E1234567', round_contributions: false })
+  const columns = new Set(server.settingsPatches.flatMap((patch) => Object.keys(patch)))
+  expect([...columns].sort()).toEqual(['employer_name', 'employer_registration', 'round_contributions', 'updated_at'])
+  await expect(page.getByRole('button', pill(/En ligne, tout est synchronisé/))).toBeVisible({ timeout: 10_000 })
+})

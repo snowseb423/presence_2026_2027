@@ -194,6 +194,36 @@ describe('RLS', () => {
     expect(settings).toEqual({ hourly_rate: '175.00', updated_by: ALICE.id })
     await db.exec(`update public.settings set hourly_rate = 170; update public.status_rules set paid_hours = 1.5 where code = 'demi_journee'`)
   })
+
+  it('un membre renseigne la fiche de paie et les cotisations, dans les limites prévues', async () => {
+    const contributions = [{ id: 'csg', label: 'CSG', brackets: [{ upTo: null, employeeRate: 1.5, employerRate: 3 }] }]
+    await as(BOB, async () => {
+      await db.query(
+        `update public.settings set employee_full_name = $1, employee_hire_date = $2, employer_registration = $3,
+                pay_day = 5, round_contributions = false, contributions = $4::jsonb, updated_at = now()`,
+        ['Marie-Claire Dupont', '2026-09-01', 'ERN123', JSON.stringify(contributions)],
+      )
+      expect(await errorCode(db.exec(`update public.settings set contributions = '{}'::jsonb`))).toBe('23514')
+      expect(await errorCode(db.exec(`update public.settings set pay_day = 31`))).toBe('23514')
+      expect(await errorCode(db.exec(`update public.settings set employee_nic = repeat('A', 21)`))).toBe('23514')
+    })
+    await as(MALLORY, async () => {
+      await db.exec(`update public.settings set employer_name = 'Pirate'`)
+    })
+    const [settings] = await rows(
+      `select employee_full_name, employee_hire_date::text as hire, employer_name, pay_day, round_contributions,
+              contributions, updated_by from public.settings`,
+    )
+    expect(settings).toEqual({
+      employee_full_name: 'Marie-Claire Dupont',
+      hire: '2026-09-01',
+      employer_name: '',
+      pay_day: 5,
+      round_contributions: false,
+      contributions,
+      updated_by: BOB.id,
+    })
+  })
 })
 
 describe('saisies : last-write-wins', () => {

@@ -61,7 +61,8 @@ revalidation, envoie le corps frais à la page (`postMessage`). La page :
 │   ├── config.toml              # pour la CLI Supabase (optionnel)
 │   ├── migrations/
 │   │   ├── 20260928120000_schema.sql          # tables, RLS, RPC, triggers, realtime
-│   │   └── 20260928120100_reference_data.sql  # ligne settings + table des statuts
+│   │   ├── 20260928120100_reference_data.sql  # ligne settings + table des statuts
+│   │   └── 20260929120000_payslip.sql         # fiche de paie : identités, cotisations
 │   ├── seed.sql                 # jours fériés 2026–2027
 │   └── templates/magic_link.html # email avec lien + code
 └── src/
@@ -72,6 +73,7 @@ revalidation, envoie le corps frais à la page (`postMessage`). La page :
     │   ├── dates.ts             # dates ISO, jour ISO, « aujourd'hui » à Maurice
     │   ├── status.ts            # statut par défaut, métadonnées des statuts
     │   ├── pay.ts               # montant du jour, mois, année, période (centimes)
+    │   ├── payslip.ts           # fiche de paie : rémunération, cotisations, net
     │   ├── format.ts            # « Rs 12 276 », « −Rs 1 674 », heures, dates FR
     │   └── defaults.ts          # valeurs par défaut (miroir du seed SQL)
     ├── data/
@@ -84,7 +86,7 @@ revalidation, envoie le corps frais à la page (`postMessage`). La page :
     │   └── hooks.ts             # useAppData, useSyncState, useToday
     ├── auth/                    # AuthProvider, LoginScreen
     ├── pwa/                     # installation, mise à jour, aide iOS
-    ├── export/                  # csv.ts, xlsx.ts (chargés à la demande)
+    ├── export/                  # csv.ts, xlsx.ts, pdf.ts + payslip-pdf.ts (chargés à la demande)
     ├── ui/                      # Sheet, Toast, StatusGlyph, Chip, Stepper, icônes…
     ├── layout/                  # AppShell, BottomNav, SyncPill
     └── screens/                 # Today, Month, DaySheet, Budget, Settings
@@ -104,7 +106,16 @@ settings (                         -- ligne unique : id = 1
   transport_per_day numeric default 48,
   work_days smallint[] default '{1,2,3,4,5}',   -- ISO : 1 = lundi … 7 = dimanche
   period_start date default '2026-09-01', period_end date default '2027-12-31',
-  employee_name text, updated_by uuid, updated_at timestamptz
+  employee_name text,
+  -- fiche de paie : employée, employeur, paie
+  employee_full_name, employee_address, employee_nic, employee_job_title text,
+  employee_hire_date date, employee_payment_method, employee_bank_account text,
+  employer_name, employer_address, employer_phone, employer_email,
+  employer_registration text,
+  pay_day smallint default 0,          -- 0 = dernier jour ouvré, 1…28 = mois suivant
+  round_contributions boolean default true,
+  contributions jsonb,                 -- CSG, NSF, PRGF, NPF… (tranches, plancher, plafond, mois)
+  updated_by uuid, updated_at timestamptz
 )
 
 status_rules (
@@ -163,6 +174,20 @@ Tests Vitest : mois complet sans absence, octobre 2026 avec 3 congés non payés
 (12 276 → 10 602, écart −1 674), demi-journée, forçage d'heures, férié en
 semaine, férié un dimanche, période complète = Rs 187 488 pour 336 jours.
 
+Fiche de paie (`src/domain/payslip.ts`) :
+
+```
+assiette(c)   = salaire de base (heures × taux) ou brut (+ transport)
+tranche(c)    = première tranche dont la borne n'est pas dépassée par l'assiette
+base(c)       = assiette bornée par plancher et plafond (0 si aucun salaire)
+retenue(c)    = base × taux salarial   ; part patronale(c) = base × taux patronal
+                (un seul arrondi : roupie par défaut, sinon centime)
+net           = brut − Σ retenues      ; coût employeur = brut + Σ parts patronales
+```
+
+Une cotisation ne s'applique qu'aux mois compris entre son premier et son
+dernier mois : la CSG et le PRGF s'arrêtent en juin 2027, le NPF prend le relais.
+
 ## 5. Composants
 
 | Écran | Composants |
@@ -170,8 +195,8 @@ semaine, férié un dimanche, période complète = Rs 187 488 pour 336 jours.
 | Commun | `AppShell` (bandeau haut, zones sûres), `BottomNav`, `SyncPill` (en ligne / hors ligne / n en attente), `Sheet` (dialog natif en feuille basse), `Toaster` (avec « Annuler »), `StatusGlyph` (forme + couleur), `StatusChip`, `Stepper`, `UpdatePrompt` |
 | Aujourd'hui | `TodayHero` (date, statut, montant, formule), `QuickStatusGrid` (4 statuts + « Autres »), `AllStatusesSheet`, `WeekStrip`, `MonthSnapshot` |
 | Mois | `MonthNav` (bornée à la période), `CalendarGrid`, `Legend`, `MonthSummaryCard`, `DaySheet` (statut, forçage, commentaire, montant, dernier auteur) |
-| Budget | `PeriodTotals`, `YearSection`, `MonthBlock`, `ExportButtons` |
-| Réglages | `SettingsForm`, `WorkDaysPicker`, `StatusRulesEditor`, `HolidaysEditor` + `HolidaySheet`, `AccountsSection`, `InstallSection` (+ aide iOS), `ThemePicker`, `SyncDiagnostics` |
+| Budget | `PeriodTotals`, `YearSection`, `MonthBlock` (+ `PayrollFigures` : retenues, net, cotisations patronales), `ExportButtons` (fiche de paie PDF, CSV, XLSX) |
+| Réglages | `SettingsForm`, `WorkDaysPicker`, `IdentityForm` (employée, employeur), `ContributionsEditor` + `ContributionSheet`, `StatusRulesEditor`, `HolidaysEditor` + `HolidaySheet`, `AccountsSection`, `InstallSection` (+ aide iOS), `ThemePicker`, `SyncDiagnostics` |
 | Auth | `LoginScreen` (« Continuer avec Google » si activé dans Supabase ; email → lien + saisie du code) |
 
 ## 6. Direction artistique

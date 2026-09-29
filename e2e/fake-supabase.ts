@@ -90,6 +90,8 @@ export class FakeSupabase {
   ]
   /** Appels RPC reçus, dans l'ordre. */
   rpcCalls: { fn: string; args: Row }[] = []
+  /** Modifications des réglages reçues (PATCH), dans l'ordre. */
+  settingsPatches: Row[] = []
   /** Connexion Google activée (réglages publics d'Auth). */
   google = false
   /** Compte choisi sur la page Google : refusé s'il n'est pas dans allowed_emails. */
@@ -158,6 +160,14 @@ export class FakeSupabase {
         const args = request.postDataJSON() as Row
         this.rpcCalls.push({ fn, args })
         return json(this.applyRpc(fn, args))
+      }
+      if (request.method() === 'PATCH' && table === 'settings') {
+        const patch = request.postDataJSON() as Row
+        this.settingsPatches.push(patch)
+        this.settings = { ...this.settings, ...patch, updated_by: USER.id }
+        // .single() demande un objet, sinon PostgREST renvoie une liste.
+        const single = (request.headers()['accept'] ?? '').includes('vnd.pgrst.object')
+        return json(single ? this.settings : [this.settings])
       }
       return json({ message: `non simulé : ${request.method()} ${url.pathname}` }, 404)
     })

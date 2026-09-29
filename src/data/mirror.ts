@@ -19,8 +19,9 @@ export interface AppData extends MirrorState {
   hydrated: boolean
 }
 
+/** Réglages enregistrés avant l'ajout de champs : complétés par les valeurs par défaut. */
 function stripId({ id: _id, ...settings }: SettingsRow): Settings {
-  return settings
+  return { ...DEFAULT_SETTINGS, ...settings }
 }
 
 export async function loadAppData(db: PresenceDB): Promise<AppData> {
