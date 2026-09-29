@@ -62,7 +62,8 @@ revalidation, envoie le corps frais à la page (`postMessage`). La page :
 │   ├── migrations/
 │   │   ├── 20260928120000_schema.sql          # tables, RLS, RPC, triggers, realtime
 │   │   ├── 20260928120100_reference_data.sql  # ligne settings + table des statuts
-│   │   └── 20260929120000_payslip.sql         # fiche de paie : identités, cotisations
+│   │   ├── 20260929120000_payslip.sql         # fiche de paie : identités, cotisations
+│   │   └── 20260929130000_end_of_year_bonus.sql # bonus de fin d'année (décembre)
 │   ├── seed.sql                 # jours fériés 2026–2027
 │   └── templates/magic_link.html # email avec lien + code
 └── src/
@@ -114,7 +115,8 @@ settings (                         -- ligne unique : id = 1
   employer_registration text,
   pay_day smallint default 0,          -- 0 = dernier jour ouvré, 1…28 = mois suivant
   round_contributions boolean default true,
-  contributions jsonb,                 -- CSG, NSF, PRGF, NPF… (tranches, plancher, plafond, mois)
+  contributions jsonb,                 -- CSG, NSF, PRGF, NPF… (tranches, plancher, plafond, mois, bonus)
+  end_of_year_bonus boolean default true, end_of_year_bonus_base text default 'gross',
   updated_by uuid, updated_at timestamptz
 )
 
@@ -187,6 +189,15 @@ net           = brut − Σ retenues      ; coût employeur = brut + Σ parts pa
 
 Une cotisation ne s'applique qu'aux mois compris entre son premier et son
 dernier mois : la CSG et le PRGF s'arrêtent en juin 2027, le NPF prend le relais.
+
+Bonus de fin d'année, sur la fiche de décembre :
+
+```
+bonus         = gains de l'année (mois de la période) / 12   (brut, ou salaire de base)
+part de base  = salaire de base de l'année / 12
+cotisations   = celles marquées « dues sur le bonus » (CSG), calculées à part
+                sur la part de base, tranche choisie d'après elle
+```
 
 ## 5. Composants
 

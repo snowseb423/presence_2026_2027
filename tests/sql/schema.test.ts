@@ -206,13 +206,15 @@ describe('RLS', () => {
       expect(await errorCode(db.exec(`update public.settings set contributions = '{}'::jsonb`))).toBe('23514')
       expect(await errorCode(db.exec(`update public.settings set pay_day = 31`))).toBe('23514')
       expect(await errorCode(db.exec(`update public.settings set employee_nic = repeat('A', 21)`))).toBe('23514')
+      await db.exec(`update public.settings set end_of_year_bonus = false, end_of_year_bonus_base = 'basic'`)
+      expect(await errorCode(db.exec(`update public.settings set end_of_year_bonus_base = 'net'`))).toBe('23514')
     })
     await as(MALLORY, async () => {
       await db.exec(`update public.settings set employer_name = 'Pirate'`)
     })
     const [settings] = await rows(
       `select employee_full_name, employee_hire_date::text as hire, employer_name, pay_day, round_contributions,
-              contributions, updated_by from public.settings`,
+              contributions, end_of_year_bonus, end_of_year_bonus_base, updated_by from public.settings`,
     )
     expect(settings).toEqual({
       employee_full_name: 'Marie-Claire Dupont',
@@ -221,6 +223,8 @@ describe('RLS', () => {
       pay_day: 5,
       round_contributions: false,
       contributions,
+      end_of_year_bonus: false,
+      end_of_year_bonus_base: 'basic',
       updated_by: BOB.id,
     })
   })

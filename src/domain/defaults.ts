@@ -12,6 +12,9 @@ import type { Contribution, Holiday, Settings, StatusRule } from './types.ts'
 // - PRGF : 4,5 % à la charge de l'employeur, sauf au-delà de Rs 200 000 ;
 // - NPF (budget 2026-2027) : remplace CSG et PRGF au 1er juillet 2027 ;
 // - taxe de formation (Training Levy) : non due pour un employé de maison.
+// Bonus de fin d'année : la CSG s'y applique, calculée à part (loi de 2021 sur
+// les contributions sociales) ; la NSF et le PRGF non (leur assiette exclut le
+// bonus) ; le NPF est supposé suivre la CSG, à confirmer.
 export const DEFAULT_CONTRIBUTIONS: Contribution[] = [
   {
     id: 'csg',
@@ -28,6 +31,7 @@ export const DEFAULT_CONTRIBUTIONS: Contribution[] = [
     ],
     from: null,
     to: '2027-06',
+    onBonus: true,
   },
   {
     id: 'nsf',
@@ -40,6 +44,7 @@ export const DEFAULT_CONTRIBUTIONS: Contribution[] = [
     brackets: [{ upTo: null, employeeRate: 1, employerRate: 2.5 }],
     from: null,
     to: null,
+    onBonus: false,
   },
   {
     id: 'prgf',
@@ -55,6 +60,7 @@ export const DEFAULT_CONTRIBUTIONS: Contribution[] = [
     ],
     from: null,
     to: '2027-06',
+    onBonus: false,
   },
   {
     id: 'npf',
@@ -70,6 +76,7 @@ export const DEFAULT_CONTRIBUTIONS: Contribution[] = [
     ],
     from: '2027-07',
     to: null,
+    onBonus: true,
   },
   {
     id: 'training_levy',
@@ -82,6 +89,7 @@ export const DEFAULT_CONTRIBUTIONS: Contribution[] = [
     brackets: [{ upTo: null, employeeRate: 0, employerRate: 1 }],
     from: null,
     to: null,
+    onBonus: false,
   },
 ]
 
@@ -108,6 +116,8 @@ export const DEFAULT_SETTINGS: Settings = {
   payDay: 0,
   roundContributions: true,
   contributions: DEFAULT_CONTRIBUTIONS,
+  endOfYearBonus: true,
+  endOfYearBonusBase: 'gross',
   updatedAt: null,
   updatedBy: null,
 }

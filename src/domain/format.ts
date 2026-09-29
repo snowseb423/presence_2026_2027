@@ -128,6 +128,14 @@ export function monthName(month: IsoMonth): string {
   return MONTHS[Number(month.slice(5, 7)) - 1]!
 }
 
+/** Mois consécutifs d'une même année : « septembre à décembre 2026 », « mars 2027 ». */
+export function formatMonthRange(months: readonly IsoMonth[]): string {
+  const first = months[0]
+  const last = months.at(-1)
+  if (!first || !last) return ''
+  return first === last ? formatMonth(first) : `${monthName(first)} à ${formatMonth(last)}`
+}
+
 /** Horodatage → « lun. 28/09 à 14:32 », à l'heure de Maurice. */
 export function formatTimestamp(timestamp: string, timeZone: string = MAURITIUS_TZ): string {
   const moment = new Date(timestamp)

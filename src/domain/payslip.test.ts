@@ -8,8 +8,9 @@ import {
   payDate,
   sanitizeContributions,
   sumPayroll,
+  yearEndBonus,
 } from './payslip.ts'
-import { periodMonths } from './pay.ts'
+import { periodMonths, summarizeMonth } from './pay.ts'
 import type { CalcContext, Contribution, Holiday, Override, Settings, StatusCode } from './types.ts'
 
 function context(overrides: Record<string, StatusCode> = {}, settings: Partial<Settings> = {}, holidays: Holiday[] = DEFAULT_HOLIDAYS): CalcContext {
@@ -131,7 +132,9 @@ describe('fiche de paie : cotisations par défaut', () => {
   it('toute la période : net = brut − retenues, coût = brut + charges', () => {
     const ctx = context()
     const total = sumPayroll(periodMonths(ctx.settings).map((month) => computePayslip(month, ctx)))
-    expect(total.grossCents).toBe(rs(187_488))
+    // Présences de la période, plus les bonus de décembre 2026 et 2027.
+    expect(total.grossCents - total.bonusCents).toBe(rs(187_488))
+    expect(total.bonusCents).toBeGreaterThan(0)
     expect(total.netCents).toBe(total.grossCents - total.employeeCents)
     expect(total.costCents).toBe(total.grossCents + total.employerCents)
     expect(total.employeeCents).toBeGreaterThan(0)
@@ -150,6 +153,7 @@ describe('cotisation paramétrée', () => {
     brackets: [{ upTo: null, employeeRate: 2, employerRate: 0 }],
     from: '2026-11',
     to: '2026-12',
+    onBonus: false,
   }
 
   it('assiette brute : transport compris', () => {
@@ -231,6 +235,7 @@ describe('lecture des cotisations enregistrées', () => {
         ],
         from: null,
         to: null,
+        onBonus: false,
       },
       {
         id: 'd',
@@ -243,7 +248,72 @@ describe('lecture des cotisations enregistrées', () => {
         brackets: [{ upTo: null, employeeRate: 0, employerRate: 3 }],
         from: null,
         to: '2027-07',
+        onBonus: false,
       },
     ])
+  })
+
+  it('cotisations enregistrées avant le bonus : « due sur le bonus » repris des valeurs par défaut', () => {
+    const stored = DEFAULT_CONTRIBUTIONS.map(({ onBonus: _onBonus, ...rest }) => rest)
+    expect(sanitizeContributions(stored)).toEqual(DEFAULT_CONTRIBUTIONS)
+    expect(sanitizeContributions([{ id: 'perso', label: 'P', brackets: [{ upTo: null, employeeRate: 1, employerRate: 1 }] }])?.[0]?.onBonus).toBe(false)
+  })
+})
+
+describe('bonus de fin d’année', () => {
+  it('décembre 2026 : 1/12 du brut de septembre à décembre, CSG à part sur la part salaire de base', () => {
+    const slip = computePayslip('2026-12', context())
+    // Brut 2026 suivi : 11 718 + 12 276 + 11 160 + 12 276 = Rs 47 430 ; salaire de base Rs 43 350.
+    expect(slip.bonus).toEqual({
+      months: ['2026-09', '2026-10', '2026-11', '2026-12'],
+      base: 'gross',
+      earningsCents: rs(47_430),
+      cents: rs(3_952.5),
+      basicCents: rs(3_612.5),
+      advanceBy: '2026-12-18',
+      balanceBy: '2026-12-31',
+    })
+    expect(slip.earnings.at(-1)).toMatchObject({ code: 'bonus', unit: 'bonus', amountCents: rs(3_952.5) })
+    expect(slip.contributions.map(({ id, bonus, baseCents, employeeCents, employerCents }) => [id, bonus, baseCents / 100, employeeCents / 100, employerCents / 100])).toEqual([
+      ['csg', false, 11_220, 168, 337],
+      ['nsf', false, 11_220, 112, 281],
+      ['prgf', false, 11_220, 0, 505],
+      ['csg', true, 3_612.5, 54, 108],
+    ])
+    expect(slip).toMatchObject({
+      bonusCents: rs(3_952.5),
+      grossCents: rs(16_228.5),
+      employeeCents: rs(334),
+      netCents: rs(15_894.5),
+      employerCents: rs(1_231),
+      costCents: rs(17_459.5),
+    })
+  })
+
+  it('sur le salaire de base seulement, si réglé ainsi', () => {
+    const slip = computePayslip('2026-12', context({}, { endOfYearBonusBase: 'basic' }))
+    expect(slip.bonus).toMatchObject({ earningsCents: rs(43_350), cents: rs(3_612.5), basicCents: rs(3_612.5) })
+  })
+
+  it('rien hors décembre, ni si le bonus est désactivé ou décembre hors période', () => {
+    expect(computePayslip('2026-11', context()).bonus).toBeNull()
+    expect(computePayslip('2026-12', context({}, { endOfYearBonus: false })).bonus).toBeNull()
+    expect(yearEndBonus('2026-12', context({}, { periodEnd: '2026-11-30' }))).toBeNull()
+  })
+
+  it('décembre 2027 : toute l’année, NPF sur le bonus (la CSG ne s’applique plus)', () => {
+    const ctx = context()
+    const slip = computePayslip('2027-12', ctx)
+    const months = periodMonths(ctx.settings).filter((month) => month.startsWith('2027-'))
+    const gross = months.reduce((sum, month) => sum + summarizeMonth(month, ctx).totalCents, 0)
+    expect(slip.bonus).toMatchObject({ months, earningsCents: gross, cents: Math.round(gross / 12), advanceBy: '2027-12-20', balanceBy: '2027-12-31' })
+    expect(slip.contributions.filter((line) => line.bonus).map((line) => line.id)).toEqual(['npf'])
+  })
+
+  it('une cotisation sans « due sur le bonus » n’est pas prélevée sur le bonus', () => {
+    const contributions = DEFAULT_CONTRIBUTIONS.map((contribution) => ({ ...contribution, onBonus: false }))
+    const slip = computePayslip('2026-12', context({}, { contributions }))
+    expect(slip.contributions.some((line) => line.bonus)).toBe(false)
+    expect(slip.netCents).toBe(slip.grossCents - slip.employeeCents)
   })
 })

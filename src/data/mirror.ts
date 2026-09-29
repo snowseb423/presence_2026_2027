@@ -1,6 +1,7 @@
 // Lecture et écriture du miroir local (Dexie). L'état affiché combine le
 // miroir serveur et les opérations encore dans la file.
 import { DEFAULT_HOLIDAYS, DEFAULT_SETTINGS, DEFAULT_STATUS_RULES } from '../domain/defaults.ts'
+import { sanitizeContributions } from '../domain/payslip.ts'
 import type { Holiday, IsoDate, Member, Override, Settings, StatusRule } from '../domain/types.ts'
 import type { MirrorTable, OutboxEntry, PresenceDB, SettingsRow } from './db.ts'
 import { type MirrorState, type Op, applyOps, isNewer, mergeOps, opKey } from './ops.ts'
@@ -19,9 +20,17 @@ export interface AppData extends MirrorState {
   hydrated: boolean
 }
 
-/** Réglages enregistrés avant l'ajout de champs : complétés par les valeurs par défaut. */
+/**
+ * Réglages enregistrés avant l'ajout de champs (mode local, miroir pas encore
+ * relu) : complétés par les valeurs par défaut, cotisations relues comme
+ * celles du serveur.
+ */
 function stripId({ id: _id, ...settings }: SettingsRow): Settings {
-  return { ...DEFAULT_SETTINGS, ...settings }
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    contributions: sanitizeContributions(settings.contributions) ?? DEFAULT_SETTINGS.contributions,
+  }
 }
 
 export async function loadAppData(db: PresenceDB): Promise<AppData> {

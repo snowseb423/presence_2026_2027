@@ -1,9 +1,9 @@
 import { Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Member } from '../domain/types.ts'
-import { formatHours, formatPercent, formatRs, formatRupees, formatTimestamp } from '../domain/format.ts'
+import { formatDateNumeric, formatHours, formatMonthRange, formatPercent, formatRs, formatRupees, formatTimestamp } from '../domain/format.ts'
 import type { DayComputation, Totals } from '../domain/pay.ts'
-import type { ContributionLine, PayrollTotals } from '../domain/payslip.ts'
+import type { ContributionLine, PayrollTotals, YearEndBonus } from '../domain/payslip.ts'
 import type { EffectiveOverride } from '../data/ops.ts'
 import type { Settings, StatusRule } from '../domain/types.ts'
 import { StatusGlyph } from '../ui/StatusGlyph.tsx'
@@ -162,18 +162,48 @@ export function Figures({ totals, workDays }: { totals: Totals; workDays: readon
 
 /** « CSG 1,5 %, NSF 1 % » : cotisations dont la part demandée n'est pas nulle. */
 function ratesHint(lines: readonly ContributionLine[], share: 'employeeRate' | 'employerRate'): string | undefined {
-  const parts = lines.filter((line) => line[share] > 0).map((line) => `${line.label} ${formatPercent(line[share])}`)
+  const parts = lines
+    .filter((line) => line[share] > 0)
+    .map((line) => `${line.bonus ? `${line.label} sur le bonus` : line.label} ${formatPercent(line[share])}`)
   return parts.length ? parts.join(', ') : undefined
 }
 
-/** Suite de la fiche de paie : retenues, net à payer, cotisations patronales, coût employeur. */
-export function PayrollFigures({ payroll, contributions = [] }: { payroll: PayrollTotals; contributions?: readonly ContributionLine[] }) {
+/** « 1/12 des gains de septembre à décembre 2026 · 75 % au plus tard le 18/12/2026 ». */
+function bonusHint(bonus: YearEndBonus): string {
+  const what = bonus.base === 'gross' ? 'des gains' : 'du salaire de base'
+  return `1/12 ${what} de ${formatMonthRange(bonus.months)} · 75 % au plus tard le ${formatDateNumeric(bonus.advanceBy)}`
+}
+
+/**
+ * Suite de la fiche de paie : bonus de fin d'année (décembre), retenues,
+ * net à payer, cotisations patronales, coût employeur.
+ */
+export function PayrollFigures({
+  payroll,
+  contributions = [],
+  bonus = null,
+}: {
+  payroll: PayrollTotals
+  contributions?: readonly ContributionLine[]
+  bonus?: YearEndBonus | null
+}) {
   return (
     <dl className="divide-y divide-line border-t border-line">
+      {payroll.bonusCents > 0 ? (
+        <Row
+          label="Bonus de fin d’année"
+          value={formatRs(payroll.bonusCents, { signed: true })}
+          hint={bonus ? bonusHint(bonus) : undefined}
+        />
+      ) : null}
       <Row label="Retenues salariales" value={formatRs(-payroll.employeeCents)} hint={ratesHint(contributions, 'employeeRate')} />
       <Row label="NET À PAYER" value={formatRs(payroll.netCents)} strong />
       <Row label="Cotisations patronales" value={formatRs(payroll.employerCents)} hint={ratesHint(contributions, 'employerRate')} />
-      <Row label="Coût employeur" value={formatRs(payroll.costCents)} hint="salaire brut + cotisations patronales" />
+      <Row
+        label="Coût employeur"
+        value={formatRs(payroll.costCents)}
+        hint={`salaire brut${payroll.bonusCents > 0 ? ' + bonus' : ''} + cotisations patronales`}
+      />
     </dl>
   )
 }

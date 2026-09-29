@@ -25,8 +25,21 @@ describe('conversion des lignes Supabase', () => {
       employerName: '',
       payDay: 0,
       roundContributions: true,
+      endOfYearBonus: true,
+      endOfYearBonusBase: 'gross',
     })
     expect(settings.contributions).toEqual(DEFAULT_CONTRIBUTIONS)
+  })
+
+  it('lit les réglages du bonus de fin d’année', () => {
+    expect(toSettings({ end_of_year_bonus: false, end_of_year_bonus_base: 'basic' })).toMatchObject({
+      endOfYearBonus: false,
+      endOfYearBonusBase: 'basic',
+    })
+    expect(settingsColumns({ endOfYearBonus: true, endOfYearBonusBase: 'gross' })).toEqual({
+      end_of_year_bonus: true,
+      end_of_year_bonus_base: 'gross',
+    })
   })
 
   it('lit la fiche de paie et les cotisations', () => {
