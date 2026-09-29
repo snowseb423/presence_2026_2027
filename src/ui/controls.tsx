@@ -1,5 +1,5 @@
-import { Minus, Plus } from 'lucide-react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { ChevronDown, Minus, Plus } from 'lucide-react'
+import type { ButtonHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { formatHours } from '../domain/format.ts'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'quiet'
@@ -153,5 +153,25 @@ export function Field({
   )
 }
 
-export const inputClass =
-  'min-h-12 w-full rounded-2xl border border-line-strong bg-surface px-4 text-base text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus-visible:outline-3 focus-visible:outline-offset-1'
+const fieldClass =
+  'w-full rounded-2xl border border-line-strong bg-surface px-4 text-base text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus-visible:outline-3 focus-visible:outline-offset-1'
+
+export const inputClass = `min-h-12 ${fieldClass}`
+
+export const textareaClass = `min-h-24 resize-y py-3 ${fieldClass}`
+
+/** Liste déroulante native, à l'apparence des champs de saisie. */
+export function Select({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="relative">
+      <select className={`${inputClass} appearance-none pr-11 ${className}`} {...props}>
+        {children}
+      </select>
+      <ChevronDown
+        size={18}
+        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-ink-2"
+        aria-hidden="true"
+      />
+    </div>
+  )
+}

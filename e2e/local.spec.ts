@@ -1,4 +1,5 @@
 // Mode local (sans Supabase), service worker actif.
+import { readFileSync } from 'node:fs'
 import { type Page, expect, test } from '@playwright/test'
 import { freezeClock } from './fake-supabase.ts'
 
@@ -79,6 +80,43 @@ test('budget : Rs 187 488 pour 336 jours, puis octobre à Rs 10 602 avec 3 cong�
   await expect(october).toContainText('−Rs 1 674')
   await expect(october).toContainText('Budget de référence')
   await expect(october).toContainText('Rs 12 276')
+})
+
+test('fiche de paie : identités et cotisations dans Réglages, net du mois, PDF téléchargé', async ({ page }) => {
+  await page.goto('/reglages')
+  const employee = page.getByRole('form', { name: 'Employée' })
+  await employee.getByLabel('Nom complet').fill('Marie-Claire Dupont')
+  await employee.getByLabel('N° de carte d’identité (NIC)').fill('d0101801234567')
+  await employee.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(employee.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0)
+  const employer = page.getByRole('form', { name: 'Employeur' })
+  await employer.getByLabel('Nom complet').fill('Famille Lefèvre')
+  await employer.getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(employer.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0)
+
+  // Part salariale de la NSF passée de 1 % à 2 %.
+  await page.getByRole('button', { name: 'NSF : modifier' }).click()
+  await page.getByRole('dialog').getByLabel('Part salariale, tranche 1').fill('2')
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click()
+  await expect(page.getByRole('button', { name: 'NSF : modifier' })).toContainText('2 % salariée')
+
+  await page.getByRole('link', { name: 'Budget' }).click()
+  const october = page.locator('details', { has: page.getByRole('heading', { name: 'Octobre 2026' }) })
+  // Brut Rs 12 276 ; salaire de base Rs 11 220 : CSG 1,5 % (Rs 168) + NSF 2 % (Rs 224).
+  await expect(october).toContainText('NET À PAYER')
+  await expect(october).toContainText('Rs 11 884')
+  await expect(october).toContainText('CSG 1,5 %, NSF 2 %')
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    october.getByRole('button', { name: 'Fiche de paie octobre 2026 en PDF' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('fiche-de-paie-2026-10.pdf')
+  const pdf = readFileSync(await download.path()).toString('latin1')
+  expect(pdf.startsWith('%PDF-1.4')).toBe(true)
+  expect(pdf).toContain('(Marie-Claire Dupont) Tj')
+  expect(pdf).toContain('(NIC : D0101801234567) Tj')
+  expect(pdf).toContain('(Famille Lefèvre) Tj')
 })
 
 test('mode avion : l’app s’ouvre depuis le cache, affiche le mois et accepte une saisie', async ({ page, context }) => {

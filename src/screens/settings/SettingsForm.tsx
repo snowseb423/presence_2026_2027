@@ -6,7 +6,8 @@ import { diffDays, isIsoDate } from '../../domain/dates.ts'
 import { WEEKDAY_INITIALS, formatHours, formatNumber, parseDecimal } from '../../domain/format.ts'
 import type { Settings, StatusRule } from '../../domain/types.ts'
 import { useToast } from '../../ui/Toaster.tsx'
-import { Button, Card, Field, inputClass } from '../../ui/controls.tsx'
+import { Card, Field, inputClass } from '../../ui/controls.tsx'
+import { SaveBar } from './SaveBar.tsx'
 
 const WEEKDAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
 
@@ -256,35 +257,17 @@ export function SettingsForm({ settings, rules }: { settings: Settings; rules: S
           <p className="-mt-2 text-sm font-bold text-danger">{shown.periodStart ?? shown.periodEnd}</p>
         ) : null}
 
-        <div
-          className={
-            dirty
-              ? 'sticky bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-10 -mx-2 flex items-center justify-end gap-2 rounded-2xl bg-surface/95 p-2 shadow-card backdrop-blur-md'
-              : 'flex'
-          }
+        <SaveBar
+          dirty={dirty}
+          onCancel={() => {
+            setDraft(toDraft(settings))
+            setSubmitted(false)
+          }}
         >
-          {dirty ? (
-            <>
-              <p className="mr-auto pl-2 text-sm leading-tight text-ink-2">Non enregistré</p>
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setDraft(toDraft(settings))
-                  setSubmitted(false)
-                }}
-              >
-                Annuler
-              </Button>
-              <Button variant="primary" type="submit">
-                Enregistrer
-              </Button>
-            </>
-          ) : (
-            <p className="text-sm text-ink-2">
-              {formatNumber(settings.hoursPerDay)} h × Rs {formatNumber(settings.hourlyRate)} + Rs {formatNumber(settings.transportPerDay)} de transport par jour presté.
-            </p>
-          )}
-        </div>
+          <p className="text-sm text-ink-2">
+            {formatNumber(settings.hoursPerDay)} h × Rs {formatNumber(settings.hourlyRate)} + Rs {formatNumber(settings.transportPerDay)} de transport par jour presté.
+          </p>
+        </SaveBar>
       </form>
     </Card>
   )

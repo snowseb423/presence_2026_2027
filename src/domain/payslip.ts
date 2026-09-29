@@ -167,8 +167,8 @@ export function payDate(month: IsoMonth, ctx: CalcContext): IsoDate {
   return lastDayOfMonth(month)
 }
 
-export function computePayslip(month: IsoMonth, ctx: CalcContext): Payslip {
-  const summary = summarizeMonth(month, ctx)
+/** `summary` : récapitulatif du mois déjà calculé, s'il est disponible. */
+export function computePayslip(month: IsoMonth, ctx: CalcContext, summary: MonthSummary = summarizeMonth(month, ctx)): Payslip {
   const { settings } = ctx
   const basicCents = summary.prestationCents
   const grossCents = summary.totalCents

@@ -2,9 +2,10 @@
 
 PWA de suivi de présence d'une employée de maison à Maurice, pour deux
 téléphones synchronisés en temps réel. On y saisit les journées (travaillée,
-demi-journée, congé, absence, férié…), l'app calcule le montant dû en roupies
-et compare chaque mois au budget de référence. Elle fonctionne hors ligne :
-les saisies partent dès que le réseau revient.
+demi-journée, congé, absence, férié…), l'app calcule le montant dû en roupies,
+compare chaque mois au budget de référence et produit la fiche de paie du mois
+en PDF, cotisations (CSG, NSF, PRGF, NPF…) déduites. Elle fonctionne hors
+ligne : les saisies partent dès que le réseau revient.
 
 <p>
   <img src="docs/captures/aujourdhui-clair.png" alt="Écran Aujourd'hui : date, statut et montant du jour, choix du statut en un tap" width="220">
@@ -26,9 +27,10 @@ les saisies partent dès que le réseau revient.
 4. [Déploiement](#4-déploiement)
 5. [Installer l'app sur les téléphones](#5-installer-lapp-sur-les-téléphones)
 6. [Règles de calcul](#6-règles-de-calcul)
-7. [Tests et critères de validation](#7-tests-et-critères-de-validation)
-8. [Fonctionnement hors ligne et synchronisation](#8-fonctionnement-hors-ligne-et-synchronisation)
-9. [Dépannage](#9-dépannage)
+7. [Fiche de paie et cotisations](#7-fiche-de-paie-et-cotisations)
+8. [Tests et critères de validation](#8-tests-et-critères-de-validation)
+9. [Fonctionnement hors ligne et synchronisation](#9-fonctionnement-hors-ligne-et-synchronisation)
+10. [Dépannage](#10-dépannage)
 
 ## 1. Démarrage rapide
 
@@ -66,14 +68,20 @@ Les libellés du tableau de bord Supabase peuvent varier légèrement selon les 
 2. Appliquez le schéma, **au choix** :
    - **SQL Editor** : exécutez, dans cet ordre, le contenu de
      `supabase/migrations/20260928120000_schema.sql`,
-     `supabase/migrations/20260928120100_reference_data.sql`, puis `supabase/seed.sql`
-     (jours fériés 2026–2027) ;
+     `supabase/migrations/20260928120100_reference_data.sql`,
+     `supabase/migrations/20260929120000_payslip.sql` (fiche de paie), puis
+     `supabase/seed.sql` (jours fériés 2026–2027) ;
    - **CLI Supabase** :
      ```bash
      npx supabase login
      npx supabase link --project-ref <référence-du-projet>
      npx supabase db push --include-seed
      ```
+
+**Projet déjà en place** (créé avant la fiche de paie) : exécutez seulement
+`supabase/migrations/20260929120000_payslip.sql` dans le SQL Editor, ou
+`npx supabase db push`. Elle ajoute aux réglages les informations de
+l'employée, de l'employeur et les cotisations, sans toucher aux données.
 
 Le schéma crée les tables `settings`, `status_rules`, `holidays`,
 `attendance_overrides`, `allowed_emails` (+ une table technique
@@ -247,12 +255,69 @@ Paramètres par défaut (modifiables dans **Réglages**) : Rs 170 / heure,
   (imprévus) sont deux compteurs distincts.
 - Changer les heures par jour propose d'adapter les statuts (3 h → 4 h, 1,5 h → 2 h).
 
-## 7. Tests et critères de validation
+## 7. Fiche de paie et cotisations
+
+**Budget → un mois → Fiche de paie (PDF)** produit la fiche du mois (A4, une
+page) ; **Toutes les fiches de paie (PDF)**, en haut de l'écran, les réunit
+pour toute la période, une page par mois. Sur iPhone, le fichier s'ouvre dans
+la feuille de partage (Enregistrer dans Fichiers, Mail, WhatsApp…). Le PDF est
+fabriqué sur le téléphone, hors ligne compris, sans bibliothèque
+(`src/export/pdf.ts`, police Helvetica standard).
+
+La fiche reprend : employeur et salariée, période et date de paiement,
+rémunération (une ligne par statut payé — heures travaillées, demi-journées,
+jours supplémentaires, congés et fériés payés — puis le transport), salaire
+brut, cotisations (assiette, taux et montants salariaux et patronaux),
+**net à payer**, présence du mois (jours ouvrés et prestés, heures, congés et
+absences avec leurs dates), coût employeur, montant à verser à la MRA et
+emplacements des signatures. Les commentaires des journées n'y figurent pas.
+Le net, les retenues et les cotisations patronales s'affichent aussi dans
+Budget et dans le détail du mois.
+
+Tout se règle dans **Réglages** (partagé entre les deux téléphones) :
+
+- **Fiche de paie → Employée** : nom complet, adresse postale, numéro de carte
+  d'identité (NIC), emploi, date d'entrée, mode de paiement, compte bancaire ;
+- **Fiche de paie → Employeur** : nom, adresse postale, téléphone, email,
+  numéro d'employeur (ERN) attribué par la MRA ;
+- **Cotisations** : chacune s'active ou se désactive et se modifie (libellé,
+  assiette, taux salarial et patronal par tranche de salaire, plancher,
+  plafond, premier et dernier mois d'application) ; on peut en ajouter, en
+  supprimer et rétablir les valeurs par défaut. S'y règlent aussi la date de
+  paiement (dernier jour ouvré du mois, ou jour fixe du mois suivant) et
+  l'arrondi des cotisations à la roupie.
+
+Cotisations par défaut, pour un employé de maison (taux publiés par la MRA,
+**à vérifier chaque 1er juillet**) :
+
+| Cotisation | Salariée | Employeur | Conditions |
+| --- | ---: | ---: | --- |
+| CSG | 1,5 % | 3 % | jusqu'à Rs 3 000 : part patronale seule ; au-delà de Rs 50 000 : 3 % et 6 % ; jusqu'en juin 2027 |
+| NSF | 1 % | 2,5 % | plancher Rs 2 795 et plafond Rs 28 570 (montants de juillet 2025) |
+| PRGF | – | 4,5 % | aucune au-delà de Rs 200 000 ; jusqu'en juin 2027 |
+| NPF | 1,5 % | 7,5 % | à partir de juillet 2027 (budget 2026-2027 : remplace CSG et PRGF) ; au-delà de Rs 50 000 : 3 % et 10,5 % |
+| Taxe de formation | – | 1 % | désactivée : non due pour un employé de maison |
+
+- Assiette par défaut : le **salaire de base** (heures payées × taux horaire,
+  transport exclu) ; chaque cotisation peut passer au brut, transport compris.
+- Les taux de la tranche atteinte s'appliquent à toute l'assiette du mois ;
+  plancher et plafond bornent l'assiette ; un mois sans salaire ne cotise pas.
+- Un seul arrondi par montant : à la roupie par défaut, comme dans les
+  déclarations à la MRA (montants sans centimes), sinon au centime.
+- `net = brut − retenues salariales` ; `coût employeur = brut + cotisations patronales`.
+- Exemple, octobre 2026 avec 3 congés non payés : brut Rs 10 602 dont
+  Rs 9 690 de salaire de base ; CSG Rs 145 + NSF Rs 97 retenus, **net
+  Rs 10 360** ; cotisations patronales Rs 969 (CSG 291, NSF 242, PRGF 436).
+- Non calculés : impôt sur le revenu (PAYE), bonus de fin d'année,
+  compensation salariale. Une cotisation ajoutée peut servir de retenue à
+  taux fixe.
+
+## 8. Tests et critères de validation
 
 ```bash
-npm test                          # 252 tests : calculs, formats, SQL, synchro, exports, connexion, contrastes
+npm test                          # 282 tests : calculs, fiche de paie, formats, SQL, synchro, exports (dont PDF), connexion, contrastes
 npx playwright install chromium   # une fois
-npm run test:e2e                  # 12 scénarios dans Chromium à 375 px
+npm run test:e2e                  # 14 scénarios dans Chromium à 375 px
 ```
 
 - **GitHub Actions** (`.github/workflows/ci.yml`) lance TypeScript, `npm test`, le
@@ -272,11 +337,13 @@ npm run test:e2e                  # 12 scénarios dans Chromium à 375 px
 | Mode avion : ouverture, mois affiché, saisie acceptée puis envoyée seule | e2e : rechargement hors ligne via le service worker ; file rejouée dans l'ordre au retour du réseau |
 | Période complète : Rs 187 488 pour 336 jours prestés | `src/domain/pay.test.ts` + e2e (écran Budget) |
 | Octobre 2026 avec 3 congés non payés : Rs 12 276 → Rs 10 602, écart −Rs 1 674 | `src/domain/pay.test.ts` + e2e (écran Budget) |
+| Fiche de paie d'octobre 2026 avec 3 congés non payés : net Rs 10 360, cotisations patronales Rs 969 | `src/domain/payslip.test.ts` + `src/export/pdf.test.ts` (contenu et structure du PDF) |
+| Réglages de la fiche de paie repris dans le PDF téléchargé, envoyés à Supabase colonne par colonne | e2e (modes local et synchronisé) |
 | Installation plein écran iOS et Android | manifeste `standalone`, icônes 192/512/maskable, apple-touch-icon, métas iOS (à confirmer sur les appareils) |
 | 375 px sans défilement horizontal, cibles ≥ 44 px | e2e sur les quatre écrans |
 | Contraste AA, deux thèmes | `tests/contrast.test.ts` (toutes les paires texte/fond des tokens) |
 
-## 8. Fonctionnement hors ligne et synchronisation
+## 9. Fonctionnement hors ligne et synchronisation
 
 - L'interface lit uniquement la base locale (IndexedDB via Dexie) : elle
   s'affiche instantanément, avec ou sans réseau.
@@ -295,7 +362,7 @@ npm run test:e2e                  # 12 scénarios dans Chromium à 375 px
 - La file est rejouée quand l'app est ouverte (au retour du réseau, au retour
   au premier plan ou à la prochaine ouverture).
 
-## 9. Dépannage
+## 10. Dépannage
 
 - **« Adresse non autorisée »** : ajoutez l'adresse dans `allowed_emails`
   (voir 2.2) ou depuis Réglages → Comptes sur l'autre téléphone.
@@ -318,6 +385,12 @@ npm run test:e2e                  # 12 scénarios dans Chromium à 375 px
   fenêtre fermée, utilisez l'email et le code.
 - **Eid-Ul-Fitr 2027** : date à confirmer selon la lune ; corrigez-la dans
   Réglages → Jours fériés dès l'annonce officielle.
+- **« Modification refusée par le serveur » en enregistrant l'employée,
+  l'employeur ou les cotisations** : la migration
+  `supabase/migrations/20260929120000_payslip.sql` n'a pas été appliquée (voir 2.1).
+- **Taux de cotisation** : la MRA révise le plancher et le plafond de la NSF
+  chaque 1er juillet, et le NPF (juillet 2027) reste à confirmer par la loi ;
+  mettez-les à jour dans Réglages → Cotisations.
 - **Garde d'inscription** : si votre projet interdisait les triggers sur
   `auth.users`, la migration l'indique (NOTICE) sans échouer ; les données
   restent protégées par la RLS. Vous pouvez alors utiliser le hook

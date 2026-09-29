@@ -1,8 +1,9 @@
 import { Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Member } from '../domain/types.ts'
-import { formatHours, formatRs, formatRupees, formatTimestamp } from '../domain/format.ts'
+import { formatHours, formatPercent, formatRs, formatRupees, formatTimestamp } from '../domain/format.ts'
 import type { DayComputation, Totals } from '../domain/pay.ts'
+import type { ContributionLine, PayrollTotals } from '../domain/payslip.ts'
 import type { EffectiveOverride } from '../data/ops.ts'
 import type { Settings, StatusRule } from '../domain/types.ts'
 import { StatusGlyph } from '../ui/StatusGlyph.tsx'
@@ -150,11 +151,29 @@ export function Figures({ totals, workDays }: { totals: Totals; workDays: readon
         <Row label="Heures" value={formatHours(totals.hours)} />
         <Row label="Prestation" value={formatRs(totals.prestationCents)} />
         <Row label="Transport" value={formatRs(totals.transportCents)} />
-        <Row label="TOTAL À PAYER" value={formatRs(totals.totalCents)} strong />
+        <Row label="SALAIRE BRUT" value={formatRs(totals.totalCents)} strong />
         <Row label="Budget de référence" value={formatRs(totals.budgetCents)} hint="sans aucune absence" />
         <Row label="Écart" value={<VariancePill cents={totals.varianceCents} />} />
       </dl>
       {extras.length ? <p className="mt-2 text-sm text-ink-2">Dont {extras.join(', ')}.</p> : null}
     </>
+  )
+}
+
+/** « CSG 1,5 %, NSF 1 % » : cotisations dont la part demandée n'est pas nulle. */
+function ratesHint(lines: readonly ContributionLine[], share: 'employeeRate' | 'employerRate'): string | undefined {
+  const parts = lines.filter((line) => line[share] > 0).map((line) => `${line.label} ${formatPercent(line[share])}`)
+  return parts.length ? parts.join(', ') : undefined
+}
+
+/** Suite de la fiche de paie : retenues, net à payer, cotisations patronales, coût employeur. */
+export function PayrollFigures({ payroll, contributions = [] }: { payroll: PayrollTotals; contributions?: readonly ContributionLine[] }) {
+  return (
+    <dl className="divide-y divide-line border-t border-line">
+      <Row label="Retenues salariales" value={formatRs(-payroll.employeeCents)} hint={ratesHint(contributions, 'employeeRate')} />
+      <Row label="NET À PAYER" value={formatRs(payroll.netCents)} strong />
+      <Row label="Cotisations patronales" value={formatRs(payroll.employerCents)} hint={ratesHint(contributions, 'employerRate')} />
+      <Row label="Coût employeur" value={formatRs(payroll.costCents)} hint="salaire brut + cotisations patronales" />
+    </dl>
   )
 }

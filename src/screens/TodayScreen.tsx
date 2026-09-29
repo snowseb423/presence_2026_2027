@@ -188,7 +188,7 @@ export function TodayScreen({ data, calc, today }: { data: AppData; calc: CalcCo
             <dd className="num font-display text-2xl font-extrabold">{month.workedDays}</dd>
           </div>
           <div className="col-span-2">
-            <dt className="text-sm text-ink-2">Total à payer</dt>
+            <dt className="text-sm text-ink-2">Salaire brut</dt>
             <dd className="num font-display text-2xl font-extrabold">{formatRs(month.totalCents)}</dd>
           </div>
         </dl>

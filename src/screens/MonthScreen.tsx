@@ -4,6 +4,7 @@ import type { AppData } from '../data/mirror.ts'
 import { addMonths, eachDay, firstDayOfMonth, isoWeekday, lastDayOfMonth, monthOf } from '../domain/dates.ts'
 import { WEEKDAY_INITIALS, capitalize, formatDateLong, formatMonth, formatRs } from '../domain/format.ts'
 import { computeDay, summarizeMonth } from '../domain/pay.ts'
+import { computePayslip } from '../domain/payslip.ts'
 import { sortRules } from '../domain/status.ts'
 import type { CalcContext, IsoDate, IsoMonth } from '../domain/types.ts'
 import { AppShell } from '../layout/AppShell.tsx'
@@ -11,7 +12,7 @@ import { StatusGlyph } from '../ui/StatusGlyph.tsx'
 import { Card, SectionTitle } from '../ui/controls.tsx'
 import { shortLabel } from '../ui/status.ts'
 import { DaySheet } from './DaySheet.tsx'
-import { Figures, VariancePill } from './shared.tsx'
+import { Figures, PayrollFigures, VariancePill } from './shared.tsx'
 
 const WEEKDAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
 
@@ -61,6 +62,7 @@ export function MonthScreen({
   const swipe = useSwipe(previous, next)
 
   const summary = summarizeMonth(month, calc)
+  const slip = computePayslip(month, calc, summary)
   const days = eachDay(firstDayOfMonth(month), lastDayOfMonth(month))
   const offset = isoWeekday(days[0]!) - 1
   const rules = sortRules(calc.rules.values())
@@ -172,6 +174,7 @@ export function MonthScreen({
       <SectionTitle action={<VariancePill cents={summary.varianceCents} />}>Détail du mois</SectionTitle>
       <Card>
         <Figures totals={summary} workDays={calc.settings.workDays} />
+        {slip.contributions.length ? <PayrollFigures payroll={slip} contributions={slip.contributions} /> : null}
       </Card>
       <p className="mt-3 text-sm text-ink-2">
         {`Jours non prestés par défaut : ${WEEKDAY_NAMES.filter((_, i) => !calc.settings.workDays.includes(i + 1)).join(', ') || 'aucun'}.`}

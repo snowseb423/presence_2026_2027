@@ -1,14 +1,16 @@
-import { ChevronDown, FileSpreadsheet, FileText } from 'lucide-react'
+import { ChevronDown, FileSpreadsheet, FileText, ReceiptText } from 'lucide-react'
 import { useState } from 'react'
 import { monthOf } from '../domain/dates.ts'
 import { capitalize, formatDateNumeric, formatMonth, formatRs } from '../domain/format.ts'
 import { type MonthSummary, summarizePeriod } from '../domain/pay.ts'
-import type { CalcContext, IsoDate, IsoMonth } from '../domain/types.ts'
+import { type Payslip, computePayslip, sumPayroll } from '../domain/payslip.ts'
+import type { CalcContext, IsoDate, IsoMonth, Settings } from '../domain/types.ts'
 import type { ExportFormat, ExportScope } from '../export/exporter.ts'
 import { AppShell } from '../layout/AppShell.tsx'
+import { ROUTE_PATHS, navigate } from '../lib/router.ts'
 import { useToast } from '../ui/Toaster.tsx'
 import { Button, Card, SectionTitle } from '../ui/controls.tsx'
-import { Figures, VariancePill } from './shared.tsx'
+import { Figures, PayrollFigures, VariancePill } from './shared.tsx'
 
 function useExport(calc: CalcContext) {
   const toast = useToast()
@@ -17,7 +19,7 @@ function useExport(calc: CalcContext) {
     const key = `${scope.kind}-${scope.kind === 'month' ? scope.month : ''}-${format}`
     setBusy(key)
     try {
-      // Chargé à la demande : la génération XLSX n'alourdit pas le démarrage.
+      // Chargé à la demande : la génération XLSX ou PDF n'alourdit pas le démarrage.
       const { exportData } = await import('../export/exporter.ts')
       const file = await exportData(calc, scope, format)
       toast({ message: `Fichier prêt : ${file}` })
@@ -42,20 +44,56 @@ function ExportButtons({
   const { run, busy } = useExport(calc)
   const id = `${scope.kind}-${scope.kind === 'month' ? scope.month : ''}`
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
-      <Button onClick={() => void run(scope, 'csv')} disabled={busy !== null} aria-label={`${label} en CSV`}>
-        <FileText size={18} aria-hidden="true" />
-        {busy === `${id}-csv` ? 'Export…' : 'CSV'}
+    <div className="flex flex-col gap-2">
+      <Button
+        variant="primary"
+        onClick={() => void run(scope, 'pdf')}
+        disabled={busy !== null}
+        aria-label={scope.kind === 'month' ? `Fiche de paie ${formatMonth(scope.month)} en PDF` : 'Fiches de paie de toute la période en PDF'}
+      >
+        <ReceiptText size={18} aria-hidden="true" />
+        {busy === `${id}-pdf` ? 'Export…' : scope.kind === 'month' ? 'Fiche de paie (PDF)' : 'Toutes les fiches de paie (PDF)'}
       </Button>
-      <Button onClick={() => void run(scope, 'xlsx')} disabled={busy !== null} aria-label={`${label} en XLSX (Excel)`}>
-        <FileSpreadsheet size={18} aria-hidden="true" />
-        {busy === `${id}-xlsx` ? 'Export…' : 'XLSX'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
+        <Button onClick={() => void run(scope, 'csv')} disabled={busy !== null} aria-label={`${label} en CSV`}>
+          <FileText size={18} aria-hidden="true" />
+          {busy === `${id}-csv` ? 'Export…' : 'CSV'}
+        </Button>
+        <Button onClick={() => void run(scope, 'xlsx')} disabled={busy !== null} aria-label={`${label} en XLSX (Excel)`}>
+          <FileSpreadsheet size={18} aria-hidden="true" />
+          {busy === `${id}-xlsx` ? 'Export…' : 'XLSX'}
+        </Button>
+      </div>
     </div>
   )
 }
 
-function MonthBlock({ summary, calc, open }: { summary: MonthSummary; calc: CalcContext; open: boolean }) {
+/** Rappel si la fiche de paie sortirait sans le nom de l'employée ou de l'employeur. */
+function IdentityReminder({ settings }: { settings: Settings }) {
+  const missing = [
+    !(settings.employeeFullName.trim() || settings.employeeName.trim()) && 'de l’employée',
+    !settings.employerName.trim() && 'de l’employeur',
+  ].filter(Boolean)
+  if (!missing.length) return null
+  return (
+    <p className="mt-2 text-sm text-ink-2">
+      Nom {missing.join(' et ')} à compléter dans{' '}
+      <a
+        href={ROUTE_PATHS.settings}
+        onClick={(event) => {
+          event.preventDefault()
+          navigate('settings')
+        }}
+        className="inline-flex min-h-11 items-center font-bold text-accent-strong underline underline-offset-4"
+      >
+        Réglages
+      </a>
+      .
+    </p>
+  )
+}
+
+function MonthBlock({ summary, slip, calc, open }: { summary: MonthSummary; slip: Payslip; calc: CalcContext; open: boolean }) {
   return (
     <details open={open} className="group rounded-3xl border border-line bg-surface shadow-card">
       <summary className="flex min-h-16 list-none items-center gap-3 rounded-3xl px-4 py-3 [&::-webkit-details-marker]:hidden">
@@ -75,8 +113,10 @@ function MonthBlock({ summary, calc, open }: { summary: MonthSummary; calc: Calc
       </summary>
       <div className="border-t border-line px-4 pb-4 pt-1">
         <Figures totals={summary} workDays={calc.settings.workDays} />
+        {slip.contributions.length ? <PayrollFigures payroll={slip} contributions={slip.contributions} /> : null}
         <div className="mt-3">
           <ExportButtons scope={{ kind: 'month', month: summary.month }} calc={calc} label={`Exporter ${formatMonth(summary.month)}`} />
+          <IdentityReminder settings={calc.settings} />
         </div>
       </div>
     </details>
@@ -88,6 +128,8 @@ export function BudgetScreen({ calc, today }: { calc: CalcContext; today: IsoDat
   const currentMonth: IsoMonth = monthOf(today)
   const { settings } = calc
   const total = period.totals
+  const payslips = new Map(period.months.map((summary) => [summary.month, computePayslip(summary.month, calc, summary)]))
+  const withContributions = [...payslips.values()].some((slip) => slip.contributions.length > 0)
 
   const hero = (
     <div>
@@ -109,7 +151,7 @@ export function BudgetScreen({ calc, today }: { calc: CalcContext; today: IsoDat
     <AppShell title="Budget" hero={hero}>
       <Card>
         <h2 className="font-display text-lg font-bold">Exporter toute la période</h2>
-        <p className="mb-3 text-sm text-ink-2">Détail jour par jour et récapitulatif mensuel.</p>
+        <p className="mb-3 text-sm text-ink-2">Une fiche de paie par mois, ou le détail jour par jour et le récapitulatif mensuel.</p>
         <ExportButtons scope={{ kind: 'period' }} calc={calc} label="Exporter toute la période" />
       </Card>
 
@@ -124,7 +166,13 @@ export function BudgetScreen({ calc, today }: { calc: CalcContext; today: IsoDat
           </p>
           <div className="flex flex-col gap-3">
             {year.months.map((summary) => (
-              <MonthBlock key={summary.month} summary={summary} calc={calc} open={summary.month === currentMonth} />
+              <MonthBlock
+                key={summary.month}
+                summary={summary}
+                slip={payslips.get(summary.month)!}
+                calc={calc}
+                open={summary.month === currentMonth}
+              />
             ))}
           </div>
         </section>
@@ -133,6 +181,7 @@ export function BudgetScreen({ calc, today }: { calc: CalcContext; today: IsoDat
       <SectionTitle>Total de la période</SectionTitle>
       <Card>
         <Figures totals={total} workDays={settings.workDays} />
+        {withContributions ? <PayrollFigures payroll={sumPayroll([...payslips.values()])} /> : null}
       </Card>
     </AppShell>
   )
