@@ -7,6 +7,7 @@ import {
   formatHours,
   formatMonth,
   formatNumber,
+  formatPercent,
   formatRs,
   formatTimestamp,
   parseDecimal,
@@ -35,6 +36,12 @@ describe('montants en roupies', () => {
     expect(formatRs(55_800, { signed: true })).toBe(`+Rs${NBSP}558`)
     expect(formatRs(0, { signed: true })).toBe(`Rs${NBSP}0`)
   })
+
+  it('garde deux décimales sur demande (fiche de paie)', () => {
+    expect(formatRs(969_000, { fixed: true })).toBe(`Rs${NBSP}9${NNBSP}690,00`)
+    expect(formatRs(14_535, { fixed: true })).toBe(`Rs${NBSP}145,35`)
+    expect(formatRs(0, { fixed: true })).toBe(`Rs${NBSP}0,00`)
+  })
 })
 
 describe('nombres et heures', () => {
@@ -45,6 +52,9 @@ describe('nombres et heures', () => {
     expect(formatNumber(1008)).toBe(`1${NNBSP}008`)
     expect(formatHours(1.5)).toBe(`1,5${NBSP}h`)
     expect(formatHours(66)).toBe(`66${NBSP}h`)
+    expect(formatPercent(1.5)).toBe(`1,5${NBSP}%`)
+    expect(formatPercent(3)).toBe(`3${NBSP}%`)
+    expect(formatPercent(0.125)).toBe(`0,125${NBSP}%`)
   })
 
   it('lit les saisies à la française', () => {

@@ -2,24 +2,35 @@
 import type { CalcContext } from '../domain/types.ts'
 import { isIos } from '../lib/platform.ts'
 import { buildDailyCsv } from './csv.ts'
-import { type ExportFormat, type ExportScope, fileBaseName } from './tables.ts'
+import { type ExportFormat, type ExportScope, fileBaseName, scopeMonths } from './tables.ts'
 
 export type { ExportFormat, ExportScope } from './tables.ts'
 
 const MIME: Record<ExportFormat, string> = {
   csv: 'text/csv;charset=utf-8',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pdf: 'application/pdf',
 }
 
 /** Génère le fichier et le propose à l'utilisateur ; renvoie son nom. */
 export async function exportData(calc: CalcContext, scope: ExportScope, format: ExportFormat): Promise<string> {
-  const name = `${fileBaseName(calc, scope)}.${format}`
-  const blob =
-    format === 'csv'
-      ? new Blob([buildDailyCsv(calc, scope)], { type: MIME.csv })
-      : new Blob([await (await import('./xlsx.ts')).buildXlsx(calc, scope)], { type: MIME.xlsx })
-  await deliver(blob, name)
+  const name = `${fileBaseName(calc, scope, format)}.${format}`
+  await deliver(await buildFile(calc, scope, format), name)
   return name
+}
+
+async function buildFile(calc: CalcContext, scope: ExportScope, format: ExportFormat): Promise<Blob> {
+  switch (format) {
+    case 'csv':
+      return new Blob([buildDailyCsv(calc, scope)], { type: MIME.csv })
+    case 'xlsx':
+      return new Blob([await (await import('./xlsx.ts')).buildXlsx(calc, scope)], { type: MIME.xlsx })
+    case 'pdf': {
+      // Fiches de paie : une par mois de la portée.
+      const { buildPayslipPdf } = await import('./payslip-pdf.ts')
+      return new Blob([buildPayslipPdf(calc, scopeMonths(calc, scope))], { type: MIME.pdf })
+    }
+  }
 }
 
 async function deliver(blob: Blob, name: string): Promise<void> {

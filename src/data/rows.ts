@@ -1,6 +1,9 @@
 // Conversion entre les lignes Supabase (snake_case) et les types du domaine.
+import { DEFAULT_SETTINGS } from '../domain/defaults.ts'
+import { sanitizeContributions } from '../domain/payslip.ts'
 import type { Holiday, Member, Override, Settings, StatusRule } from '../domain/types.ts'
 import type { MirrorTable } from './db.ts'
+import type { SettingsPatch } from './ops.ts'
 
 type Json = Record<string, unknown>
 
@@ -30,6 +33,37 @@ export const REMOTE_TABLES: Record<MirrorTable, string> = {
   members: 'allowed_emails',
 }
 
+/** Colonne Supabase de chaque réglage modifiable depuis l'app. */
+export const SETTINGS_COLUMNS: { [K in keyof Required<SettingsPatch>]: string } = {
+  hourlyRate: 'hourly_rate',
+  hoursPerDay: 'hours_per_day',
+  transportPerDay: 'transport_per_day',
+  workDays: 'work_days',
+  periodStart: 'period_start',
+  periodEnd: 'period_end',
+  employeeName: 'employee_name',
+  employeeFullName: 'employee_full_name',
+  employeeAddress: 'employee_address',
+  employeeNic: 'employee_nic',
+  employeeJobTitle: 'employee_job_title',
+  employeeHireDate: 'employee_hire_date',
+  employeePaymentMethod: 'employee_payment_method',
+  employeeBankAccount: 'employee_bank_account',
+  employerName: 'employer_name',
+  employerAddress: 'employer_address',
+  employerPhone: 'employer_phone',
+  employerEmail: 'employer_email',
+  employerRegistration: 'employer_registration',
+  payDay: 'pay_day',
+  roundContributions: 'round_contributions',
+  contributions: 'contributions',
+}
+
+/** Colonne absente (migration de la fiche de paie pas encore appliquée) : valeur par défaut. */
+function or<T>(value: unknown, fallback: T, read: (value: unknown) => T): T {
+  return value === undefined ? fallback : read(value)
+}
+
 export function toSettings(row: Json): Settings {
   return {
     hourlyRate: num(row.hourly_rate),
@@ -39,6 +73,21 @@ export function toSettings(row: Json): Settings {
     periodStart: text(row.period_start),
     periodEnd: text(row.period_end),
     employeeName: text(row.employee_name),
+    employeeFullName: text(row.employee_full_name),
+    employeeAddress: text(row.employee_address),
+    employeeNic: text(row.employee_nic),
+    employeeJobTitle: or(row.employee_job_title, DEFAULT_SETTINGS.employeeJobTitle, text),
+    employeeHireDate: nullableText(row.employee_hire_date),
+    employeePaymentMethod: text(row.employee_payment_method),
+    employeeBankAccount: text(row.employee_bank_account),
+    employerName: text(row.employer_name),
+    employerAddress: text(row.employer_address),
+    employerPhone: text(row.employer_phone),
+    employerEmail: text(row.employer_email),
+    employerRegistration: text(row.employer_registration),
+    payDay: or(row.pay_day, DEFAULT_SETTINGS.payDay, num),
+    roundContributions: or(row.round_contributions, DEFAULT_SETTINGS.roundContributions, Boolean),
+    contributions: sanitizeContributions(row.contributions) ?? DEFAULT_SETTINGS.contributions,
     updatedAt: nullableText(row.updated_at),
     updatedBy: nullableText(row.updated_by),
   }

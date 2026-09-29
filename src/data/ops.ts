@@ -2,9 +2,7 @@
 // Module pur : l'état affiché = miroir serveur + opérations en attente.
 import type { Holiday, IsoDate, Override, Settings, StatusCode, StatusRule } from '../domain/types.ts'
 
-export type SettingsPatch = Partial<
-  Pick<Settings, 'hourlyRate' | 'hoursPerDay' | 'transportPerDay' | 'workDays' | 'periodStart' | 'periodEnd' | 'employeeName'>
->
+export type SettingsPatch = Partial<Omit<Settings, 'updatedAt' | 'updatedBy'>>
 
 export type StatusRulePatch = Partial<Pick<StatusRule, 'paidHours' | 'transportPaid'>>
 

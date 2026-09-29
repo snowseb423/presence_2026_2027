@@ -15,9 +15,73 @@ export interface Settings {
   workDays: number[]
   periodStart: IsoDate
   periodEnd: IsoDate
+  /** Nom usuel, affiché dans l'app. */
   employeeName: string
+
+  // Fiche de paie : employée
+  /** Nom complet, tel que sur la carte d'identité. */
+  employeeFullName: string
+  employeeAddress: string
+  /** Numéro de la carte d'identité nationale (NIC). */
+  employeeNic: string
+  employeeJobTitle: string
+  employeeHireDate: IsoDate | null
+  employeePaymentMethod: string
+  employeeBankAccount: string
+
+  // Fiche de paie : employeur
+  employerName: string
+  employerAddress: string
+  employerPhone: string
+  employerEmail: string
+  /** Numéro d'enregistrement de l'employeur auprès de la MRA (ERN). */
+  employerRegistration: string
+
+  // Paie
+  /** Date de paiement : 0 = dernier jour ouvré du mois, 1…28 = ce jour du mois suivant. */
+  payDay: number
+  /** Cotisations arrondies à la roupie, comme dans les déclarations à la MRA. */
+  roundContributions: boolean
+  contributions: Contribution[]
+
   updatedAt: string | null
   updatedBy: string | null
+}
+
+/**
+ * Tranche d'une cotisation : les taux de la première tranche dont la borne
+ * n'est pas dépassée s'appliquent à toute l'assiette (pas de calcul marginal).
+ */
+export interface ContributionBracket {
+  /** Assiette mensuelle maximale de la tranche (Rs) ; null = sans limite. */
+  upTo: number | null
+  /** Part salariale (%), retenue sur le salaire. */
+  employeeRate: number
+  /** Part patronale (%), à la charge de l'employeur. */
+  employerRate: number
+}
+
+/** Assiette : salaire de base (heures payées) ou brut (avec le transport). */
+export type ContributionBase = 'basic' | 'gross'
+
+/** Cotisation sociale prélevée sur la fiche de paie (CSG, NSF, PRGF…). */
+export interface Contribution {
+  /** Identifiant stable : « csg », « nsf »… */
+  id: string
+  /** Libellé court imprimé sur la fiche : « CSG ». */
+  label: string
+  /** Intitulé complet, facultatif. */
+  description: string
+  enabled: boolean
+  base: ContributionBase
+  /** Assiette minimale et maximale (Rs par mois) ; null = aucune. */
+  floor: number | null
+  ceiling: number | null
+  /** Par bornes croissantes ; la dernière est sans limite. */
+  brackets: ContributionBracket[]
+  /** Premier et dernier mois d'application ; null = sans limite. */
+  from: IsoMonth | null
+  to: IsoMonth | null
 }
 
 export interface StatusRule {
