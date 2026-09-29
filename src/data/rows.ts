@@ -57,6 +57,8 @@ export const SETTINGS_COLUMNS: { [K in keyof Required<SettingsPatch>]: string } 
   payDay: 'pay_day',
   roundContributions: 'round_contributions',
   contributions: 'contributions',
+  endOfYearBonus: 'end_of_year_bonus',
+  endOfYearBonusBase: 'end_of_year_bonus_base',
 }
 
 /** Colonne absente (migration de la fiche de paie pas encore appliquée) : valeur par défaut. */
@@ -88,6 +90,10 @@ export function toSettings(row: Json): Settings {
     payDay: or(row.pay_day, DEFAULT_SETTINGS.payDay, num),
     roundContributions: or(row.round_contributions, DEFAULT_SETTINGS.roundContributions, Boolean),
     contributions: sanitizeContributions(row.contributions) ?? DEFAULT_SETTINGS.contributions,
+    endOfYearBonus: or(row.end_of_year_bonus, DEFAULT_SETTINGS.endOfYearBonus, Boolean),
+    endOfYearBonusBase: or(row.end_of_year_bonus_base, DEFAULT_SETTINGS.endOfYearBonusBase, (value) =>
+      value === 'basic' ? 'basic' : 'gross',
+    ),
     updatedAt: nullableText(row.updated_at),
     updatedBy: nullableText(row.updated_by),
   }

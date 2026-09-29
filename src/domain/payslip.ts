@@ -1,20 +1,21 @@
 // Fiche de paie d'un mois : rémunération détaillée, cotisations sociales,
 // net à payer et coût employeur. Module pur ; montants en centimes entiers.
 import { addDays, addMonths, firstDayOfMonth, isoWeekday, lastDayOfMonth, maxDate, minDate } from './dates.ts'
-import { type MonthSummary, summarizeMonth } from './pay.ts'
+import { DEFAULT_CONTRIBUTIONS } from './defaults.ts'
+import { type MonthSummary, periodMonths, summarizeMonth } from './pay.ts'
 import { STATUS } from './status.ts'
-import type { CalcContext, Contribution, ContributionBracket, IsoDate, IsoMonth, StatusCode } from './types.ts'
+import type { CalcContext, Contribution, ContributionBase, ContributionBracket, Holiday, IsoDate, IsoMonth, StatusCode } from './types.ts'
 
 export interface EarningLine {
-  /** Code du statut, ou « transport ». */
+  /** Code du statut, « transport » ou « bonus ». */
   code: StatusCode
   label: string
   days: number
-  /** Heures payées (0 pour le transport). */
+  /** Heures payées (0 pour le transport et le bonus). */
   hours: number
-  /** Taux horaire, ou transport par jour (Rs). */
+  /** Taux horaire, ou transport par jour (Rs) ; 0 pour le bonus. */
   rate: number
-  unit: 'hour' | 'day'
+  unit: 'hour' | 'day' | 'bonus'
   amountCents: number
 }
 
@@ -22,6 +23,8 @@ export interface ContributionLine {
   id: string
   label: string
   description: string
+  /** Cotisation sur le bonus de fin d'année, calculée à part. */
+  bonus: boolean
   /** Assiette retenue, plancher et plafond appliqués. */
   baseCents: number
   employeeRate: number
@@ -30,8 +33,29 @@ export interface ContributionLine {
   employerCents: number
 }
 
+/** Bonus de fin d'année (art. 54 du Workers' Rights Act 2019). */
+export interface YearEndBonus {
+  /** Mois de l'année pris en compte : ceux compris dans la période suivie. */
+  months: IsoMonth[]
+  /** Gains retenus : brut (avec le transport) ou salaire de base. */
+  base: ContributionBase
+  /** Gains de ces mois servant de base. */
+  earningsCents: number
+  /** 1/12 des gains. */
+  cents: number
+  /** Part « salaire de base » du bonus : assiette des cotisations sur le bonus. */
+  basicCents: number
+  /** 75 % à verser au plus tard ce jour-là (5 jours ouvrés avant Noël)… */
+  advanceBy: IsoDate
+  /** … et le solde au plus tard le dernier jour ouvré de l'année. */
+  balanceBy: IsoDate
+}
+
 export interface PayrollTotals {
+  /** Brut, bonus de fin d'année compris. */
   grossCents: number
+  /** Bonus de fin d'année (0 hors décembre). */
+  bonusCents: number
   /** Retenues salariales. */
   employeeCents: number
   /** Cotisations patronales. */
@@ -52,6 +76,7 @@ export interface Payslip extends PayrollTotals {
   /** Salaire de base : heures payées × taux horaire. */
   basicCents: number
   transportCents: number
+  bonus: YearEndBonus | null
   contributions: ContributionLine[]
 }
 
@@ -148,6 +173,7 @@ export function computeContribution(
     id: contribution.id,
     label: contribution.label,
     description: contribution.description,
+    bonus: false,
     baseCents,
     employeeRate,
     employerRate,
@@ -167,14 +193,67 @@ export function payDate(month: IsoMonth, ctx: CalcContext): IsoDate {
   return lastDayOfMonth(month)
 }
 
+/** `count`-ième jour ouvré (lundi → vendredi, hors fériés) avant `date`. */
+function workingDayBefore(date: IsoDate, count: number, holidays: ReadonlyMap<IsoDate, Holiday>): IsoDate {
+  let day = date
+  for (let found = 0; found < count; ) {
+    day = addDays(day, -1)
+    if (isoWeekday(day) <= 5 && !holidays.has(day)) found += 1
+  }
+  return day
+}
+
+/**
+ * Bonus de fin d'année, sur la fiche de décembre : 1/12 des gains des mois
+ * de l'année compris dans la période suivie (l'app ne connaît pas les
+ * autres). `december` : récapitulatif de décembre déjà calculé, s'il existe.
+ */
+export function yearEndBonus(month: IsoMonth, ctx: CalcContext, december?: MonthSummary): YearEndBonus | null {
+  const { settings } = ctx
+  if (!settings.endOfYearBonus || !month.endsWith('-12')) return null
+  const year = month.slice(0, 4)
+  const months = periodMonths(settings).filter((item) => item.startsWith(`${year}-`))
+  if (!months.includes(month)) return null
+  let basicTotal = 0
+  let grossTotal = 0
+  for (const item of months) {
+    const summary = item === month && december ? december : summarizeMonth(item, ctx)
+    basicTotal += summary.prestationCents
+    grossTotal += summary.totalCents
+  }
+  const earningsCents = settings.endOfYearBonusBase === 'basic' ? basicTotal : grossTotal
+  return {
+    months,
+    base: settings.endOfYearBonusBase,
+    earningsCents,
+    cents: Math.round(earningsCents / 12),
+    basicCents: Math.round(basicTotal / 12),
+    advanceBy: workingDayBefore(`${year}-12-25`, 5, ctx.holidays),
+    balanceBy: workingDayBefore(`${Number(year) + 1}-01-01`, 1, ctx.holidays),
+  }
+}
+
 /** `summary` : récapitulatif du mois déjà calculé, s'il est disponible. */
 export function computePayslip(month: IsoMonth, ctx: CalcContext, summary: MonthSummary = summarizeMonth(month, ctx)): Payslip {
   const { settings } = ctx
   const basicCents = summary.prestationCents
-  const grossCents = summary.totalCents
-  const contributions = settings.contributions
-    .filter((contribution) => contributionApplies(contribution, month))
-    .map((contribution) => computeContribution(contribution, { basicCents, grossCents }, settings.roundContributions))
+  const applicable = settings.contributions.filter((contribution) => contributionApplies(contribution, month))
+  const contributions = applicable.map((contribution) =>
+    computeContribution(contribution, { basicCents, grossCents: summary.totalCents }, settings.roundContributions),
+  )
+  const earnings = earningLines(summary, ctx)
+  const bonus = yearEndBonus(month, ctx, summary)
+  if (bonus) {
+    earnings.push({ code: 'bonus', label: 'Bonus de fin d’année', days: 0, hours: 0, rate: 0, unit: 'bonus', amountCents: bonus.cents })
+    // Cotisations sur le bonus : calculées à part, sur sa part « salaire de base ».
+    for (const contribution of applicable) {
+      if (!contribution.onBonus) continue
+      const line = computeContribution(contribution, { basicCents: bonus.basicCents, grossCents: bonus.cents }, settings.roundContributions)
+      contributions.push({ ...line, bonus: true })
+    }
+  }
+  const bonusCents = bonus?.cents ?? 0
+  const grossCents = summary.totalCents + bonusCents
   const employeeCents = contributions.reduce((sum, line) => sum + line.employeeCents, 0)
   const employerCents = contributions.reduce((sum, line) => sum + line.employerCents, 0)
   return {
@@ -183,10 +262,12 @@ export function computePayslip(month: IsoMonth, ctx: CalcContext, summary: Month
     end: minDate(lastDayOfMonth(month), settings.periodEnd),
     payDate: payDate(month, ctx),
     summary,
-    earnings: earningLines(summary, ctx),
+    earnings,
     basicCents,
     transportCents: summary.transportCents,
+    bonus,
     grossCents,
+    bonusCents,
     contributions,
     employeeCents,
     employerCents,
@@ -196,9 +277,10 @@ export function computePayslip(month: IsoMonth, ctx: CalcContext, summary: Month
 }
 
 export function sumPayroll(items: readonly PayrollTotals[]): PayrollTotals {
-  const total: PayrollTotals = { grossCents: 0, employeeCents: 0, employerCents: 0, netCents: 0, costCents: 0 }
+  const total: PayrollTotals = { grossCents: 0, bonusCents: 0, employeeCents: 0, employerCents: 0, netCents: 0, costCents: 0 }
   for (const item of items) {
     total.grossCents += item.grossCents
+    total.bonusCents += item.bonusCents
     total.employeeCents += item.employeeCents
     total.employerCents += item.employerCents
     total.netCents += item.netCents
@@ -210,6 +292,7 @@ export function sumPayroll(items: readonly PayrollTotals[]): PayrollTotals {
 // ---- lecture défensive des cotisations enregistrées (JSON) ----
 
 const ISO_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/
+const DEFAULT_ON_BONUS = new Map(DEFAULT_CONTRIBUTIONS.map((contribution) => [contribution.id, contribution.onBonus]))
 
 function amount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
@@ -251,6 +334,8 @@ function sanitizeContribution(value: unknown): Contribution | null {
     brackets,
     from: month(item.from),
     to: month(item.to),
+    // Enregistrée avant l'ajout du bonus : réglage par défaut de la même cotisation.
+    onBonus: typeof item.onBonus === 'boolean' ? item.onBonus : (DEFAULT_ON_BONUS.get(id) ?? false),
   }
 }
 

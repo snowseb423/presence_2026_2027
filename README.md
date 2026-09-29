@@ -69,8 +69,9 @@ Les libellés du tableau de bord Supabase peuvent varier légèrement selon les 
    - **SQL Editor** : exécutez, dans cet ordre, le contenu de
      `supabase/migrations/20260928120000_schema.sql`,
      `supabase/migrations/20260928120100_reference_data.sql`,
-     `supabase/migrations/20260929120000_payslip.sql` (fiche de paie), puis
-     `supabase/seed.sql` (jours fériés 2026–2027) ;
+     `supabase/migrations/20260929120000_payslip.sql` (fiche de paie),
+     `supabase/migrations/20260929130000_end_of_year_bonus.sql` (bonus de fin
+     d'année), puis `supabase/seed.sql` (jours fériés 2026–2027) ;
    - **CLI Supabase** :
      ```bash
      npx supabase login
@@ -78,10 +79,12 @@ Les libellés du tableau de bord Supabase peuvent varier légèrement selon les 
      npx supabase db push --include-seed
      ```
 
-**Projet déjà en place** (créé avant la fiche de paie) : exécutez seulement
-`supabase/migrations/20260929120000_payslip.sql` dans le SQL Editor, ou
-`npx supabase db push`. Elle ajoute aux réglages les informations de
-l'employée, de l'employeur et les cotisations, sans toucher aux données.
+**Projet déjà en place** : exécutez dans le SQL Editor, dans l'ordre, les
+migrations qui manquent (ou `npx supabase db push`) :
+`supabase/migrations/20260929120000_payslip.sql` (informations de l'employée,
+de l'employeur et cotisations), puis
+`supabase/migrations/20260929130000_end_of_year_bonus.sql` (bonus de fin
+d'année). Elles complètent les réglages sans toucher aux données.
 
 Le schéma crée les tables `settings`, `status_rules`, `holidays`,
 `attendance_overrides`, `allowed_emails` (+ une table technique
@@ -308,16 +311,34 @@ Cotisations par défaut, pour un employé de maison (taux publiés par la MRA,
 - Exemple, octobre 2026 avec 3 congés non payés : brut Rs 10 602 dont
   Rs 9 690 de salaire de base ; CSG Rs 145 + NSF Rs 97 retenus, **net
   Rs 10 360** ; cotisations patronales Rs 969 (CSG 291, NSF 242, PRGF 436).
-- Non calculés : impôt sur le revenu (PAYE), bonus de fin d'année,
-  compensation salariale. Une cotisation ajoutée peut servir de retenue à
-  taux fixe.
+- Non calculés : impôt sur le revenu (PAYE), compensation salariale. Une
+  cotisation ajoutée peut servir de retenue à taux fixe.
+
+**Bonus de fin d'année** (Workers' Rights Act 2019, art. 54) : ajouté à la
+fiche de décembre, 1/12 des gains de l'année. Réglages → Cotisations permet
+de le désactiver et de choisir les gains pris en compte.
+
+- Gains : le **brut, transport compris** par défaut (la loi compte dans les
+  gains les sommes versées en plus du salaire de base), ou le seul salaire de
+  base. Seuls les mois de l'année compris dans la période suivie comptent :
+  pour 2026, septembre à décembre.
+- Échéances imprimées sur la fiche : 75 % au plus tard 5 jours ouvrés avant
+  Noël (18/12/2026, 20/12/2027), le solde au plus tard le dernier jour ouvré
+  de l'année.
+- Cotisations sur le bonus, calculées à part sur sa part « salaire de base » :
+  la CSG, et le NPF à partir de juillet 2027 (à confirmer) ; ni la NSF ni le
+  PRGF, dont l'assiette exclut le bonus. Chaque cotisation porte le réglage
+  « Due aussi sur le bonus de fin d'année ».
+- Exemple, décembre 2026 : bonus Rs 3 952,50 (1/12 de Rs 47 430) ; CSG sur la
+  part salaire de base (Rs 3 612,50) : Rs 54 retenus et Rs 108 patronaux ;
+  **net Rs 15 894,50**.
 
 ## 8. Tests et critères de validation
 
 ```bash
-npm test                          # 282 tests : calculs, fiche de paie, formats, SQL, synchro, exports (dont PDF), connexion, contrastes
+npm test                          # 290 tests : calculs, fiche de paie et bonus, formats, SQL, synchro, exports (dont PDF), connexion, contrastes
 npx playwright install chromium   # une fois
-npm run test:e2e                  # 15 scénarios dans Chromium à 375 px
+npm run test:e2e                  # 16 scénarios dans Chromium à 375 px
 ```
 
 - **GitHub Actions** (`.github/workflows/ci.yml`) lance TypeScript, `npm test`, le
@@ -338,6 +359,7 @@ npm run test:e2e                  # 15 scénarios dans Chromium à 375 px
 | Période complète : Rs 187 488 pour 336 jours prestés | `src/domain/pay.test.ts` + e2e (écran Budget) |
 | Octobre 2026 avec 3 congés non payés : Rs 12 276 → Rs 10 602, écart −Rs 1 674 | `src/domain/pay.test.ts` + e2e (écran Budget) |
 | Fiche de paie d'octobre 2026 avec 3 congés non payés : net Rs 10 360, cotisations patronales Rs 969 | `src/domain/payslip.test.ts` + `src/export/pdf.test.ts` (contenu et structure du PDF) |
+| Bonus de fin d'année de décembre 2026 : Rs 3 952,50, CSG à part, net Rs 15 894,50 | `src/domain/payslip.test.ts` + e2e (écran Budget, PDF, désactivation) |
 | Réglages de la fiche de paie repris dans le PDF téléchargé, envoyés à Supabase colonne par colonne | e2e (modes local et synchronisé) |
 | Installation plein écran iOS et Android | manifeste `standalone`, icônes 192/512/maskable, apple-touch-icon, métas iOS (à confirmer sur les appareils) |
 | 375 px sans défilement horizontal, cibles ≥ 44 px | e2e sur les quatre écrans |
@@ -386,8 +408,9 @@ npm run test:e2e                  # 15 scénarios dans Chromium à 375 px
 - **Eid-Ul-Fitr 2027** : date à confirmer selon la lune ; corrigez-la dans
   Réglages → Jours fériés dès l'annonce officielle.
 - **« Modification refusée par le serveur » en enregistrant l'employée,
-  l'employeur ou les cotisations** : la migration
-  `supabase/migrations/20260929120000_payslip.sql` n'a pas été appliquée (voir 2.1).
+  l'employeur, les cotisations ou le bonus** : une migration n'a pas été
+  appliquée, `supabase/migrations/20260929120000_payslip.sql` ou
+  `supabase/migrations/20260929130000_end_of_year_bonus.sql` (voir 2.1).
 - **Taux de cotisation** : la MRA révise le plancher et le plafond de la NSF
   chaque 1er juillet, et le NPF (juillet 2027) reste à confirmer par la loi ;
   mettez-les à jour dans Réglages → Cotisations.

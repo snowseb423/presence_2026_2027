@@ -6,6 +6,7 @@ import {
   formatDayMonth,
   formatHours,
   formatMonth,
+  formatMonthRange,
   formatNumber,
   formatPercent,
   formatRs,
@@ -75,6 +76,9 @@ describe('dates en français', () => {
     expect(formatDateShort('2026-12-25')).toBe('ven. 25 déc.')
     expect(formatDateNumeric('2027-01-02')).toBe('02/01/2027')
     expect(formatMonth('2027-08')).toBe('août 2027')
+    expect(formatMonthRange(['2026-09', '2026-10', '2026-11', '2026-12'])).toBe('septembre à décembre 2026')
+    expect(formatMonthRange(['2027-03'])).toBe('mars 2027')
+    expect(formatMonthRange([])).toBe('')
   })
 
   it('affiche les horodatages à l’heure de Maurice', () => {

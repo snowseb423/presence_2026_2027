@@ -43,6 +43,10 @@ export interface Settings {
   /** Cotisations arrondies à la roupie, comme dans les déclarations à la MRA. */
   roundContributions: boolean
   contributions: Contribution[]
+  /** Bonus de fin d'année (1/12 des gains de l'année) sur la fiche de décembre. */
+  endOfYearBonus: boolean
+  /** Gains servant au calcul du bonus : brut (avec le transport) ou salaire de base. */
+  endOfYearBonusBase: ContributionBase
 
   updatedAt: string | null
   updatedBy: string | null
@@ -82,6 +86,8 @@ export interface Contribution {
   /** Premier et dernier mois d'application ; null = sans limite. */
   from: IsoMonth | null
   to: IsoMonth | null
+  /** Due aussi sur le bonus de fin d'année, calculée à part (CSG). */
+  onBonus: boolean
 }
 
 export interface StatusRule {

@@ -31,6 +31,7 @@ interface Editing {
   brackets: BracketDraft[]
   from: string
   to: string
+  onBonus: boolean
 }
 
 /** Montant ou taux affiché dans un champ : « 50 000 », « 1,5 ». */
@@ -52,6 +53,7 @@ function toEditing(contribution: Contribution | null): Editing {
     })),
     from: contribution?.from ?? '',
     to: contribution?.to ?? '',
+    onBonus: contribution?.onBonus ?? false,
   }
 }
 
@@ -97,12 +99,53 @@ function fromEditing(editing: Editing, id: string): { contribution: Contribution
       brackets,
       from: editing.from || null,
       to: editing.to || null,
+      onBonus: editing.onBonus,
     },
   }
 }
 
 function ratesText(bracket: ContributionBracket): string {
   return `${formatPercent(bracket.employeeRate)} salariée · ${formatPercent(bracket.employerRate)} employeur`
+}
+
+const BASES = [
+  ['basic', 'Salaire de base'],
+  ['gross', 'Brut avec transport'],
+] as const
+
+/** Choix d'une assiette : salaire de base, ou brut avec le transport. */
+function BaseChoice({
+  name,
+  legend,
+  value,
+  onChange,
+  hint,
+}: {
+  name: string
+  legend: string
+  value: ContributionBase
+  onChange: (value: ContributionBase) => void
+  hint?: string
+}) {
+  return (
+    <fieldset>
+      <legend className="mb-1.5 text-[0.9375rem] font-bold text-ink">{legend}</legend>
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1">
+        {BASES.map(([option, text]) => (
+          <label
+            key={option}
+            className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl px-2 text-center text-[0.9375rem] font-bold leading-tight transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-[var(--focus)] ${
+              value === option ? 'bg-surface text-ink shadow-sm' : 'text-ink-2'
+            }`}
+          >
+            <input type="radio" name={name} value={option} checked={value === option} onChange={() => onChange(option)} className="sr-only" />
+            {text}
+          </label>
+        ))}
+      </div>
+      {hint ? <p className="mt-1.5 text-sm text-ink-2">{hint}</p> : null}
+    </fieldset>
+  )
 }
 
 function validityText(contribution: Contribution): string {
@@ -155,6 +198,7 @@ export function ContributionsEditor({ calc }: { calc: CalcContext }) {
                     ? ''
                     : `Pas en ${formatMonth(month)}`,
               validityText(contribution),
+              contribution.onBonus ? 'aussi sur le bonus' : '',
             ].filter(Boolean)
             return (
               <li key={contribution.id} className="flex items-center gap-1 pr-2">
@@ -223,6 +267,26 @@ export function ContributionsEditor({ calc }: { calc: CalcContext }) {
             onChange={(roundContributions) => void commit({ roundContributions })}
           />
         </div>
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-ink">Bonus de fin d’année</p>
+            <p className="text-sm text-ink-2">1/12 des gains de l’année, ajouté à la fiche de décembre.</p>
+          </div>
+          <Switch
+            label="Bonus de fin d’année sur la fiche de décembre"
+            checked={settings.endOfYearBonus}
+            onChange={(endOfYearBonus) => void commit({ endOfYearBonus })}
+          />
+        </div>
+        {settings.endOfYearBonus ? (
+          <BaseChoice
+            name={`${id}-bonus-base`}
+            legend="Gains pris en compte pour le bonus"
+            value={settings.endOfYearBonusBase}
+            onChange={(endOfYearBonusBase) => void commit({ endOfYearBonusBase })}
+            hint="Brut par défaut : les gains comprennent les sommes versées en plus du salaire de base."
+          />
+        ) : null}
         <Button
           variant="ghost"
           onClick={() => {
@@ -385,35 +449,13 @@ function ContributionSheet({
           />
         </Field>
 
-        <fieldset>
-          <legend className="mb-1.5 text-[0.9375rem] font-bold text-ink">Assiette</legend>
-          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1">
-            {(
-              [
-                ['basic', 'Salaire de base'],
-                ['gross', 'Brut avec transport'],
-              ] as const
-            ).map(([value, text]) => (
-              <label
-                key={value}
-                className={`flex min-h-11 cursor-pointer items-center justify-center rounded-xl px-2 text-center text-[0.9375rem] font-bold leading-tight transition-colors has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-[var(--focus)] ${
-                  editing.base === value ? 'bg-surface text-ink shadow-sm' : 'text-ink-2'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name={`${id}-base`}
-                  value={value}
-                  checked={editing.base === value}
-                  onChange={() => set({ base: value })}
-                  className="sr-only"
-                />
-                {text}
-              </label>
-            ))}
-          </div>
-          <p className="mt-1.5 text-sm text-ink-2">Salaire de base : heures payées × taux horaire, sans le transport.</p>
-        </fieldset>
+        <BaseChoice
+          name={`${id}-base`}
+          legend="Assiette"
+          value={editing.base}
+          onChange={(base) => set({ base })}
+          hint="Salaire de base : heures payées × taux horaire, sans le transport."
+        />
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1.5 text-[0.9375rem] font-bold text-ink">Taux par tranche de salaire</legend>
@@ -523,6 +565,14 @@ function ContributionSheet({
               ))}
             </Select>
           </Field>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-ink">Due aussi sur le bonus de fin d’année</p>
+            <p className="text-sm text-ink-2">Calculée à part, sur la part « salaire de base » du bonus (cas de la CSG).</p>
+          </div>
+          <Switch label="Due aussi sur le bonus de fin d’année" checked={editing.onBonus} onChange={(onBonus) => set({ onBonus })} />
         </div>
 
         {submitted && error ? (

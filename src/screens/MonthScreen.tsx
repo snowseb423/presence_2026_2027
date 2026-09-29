@@ -174,7 +174,9 @@ export function MonthScreen({
       <SectionTitle action={<VariancePill cents={summary.varianceCents} />}>Détail du mois</SectionTitle>
       <Card>
         <Figures totals={summary} workDays={calc.settings.workDays} />
-        {slip.contributions.length ? <PayrollFigures payroll={slip} contributions={slip.contributions} /> : null}
+        {slip.contributions.length || slip.bonus ? (
+          <PayrollFigures payroll={slip} contributions={slip.contributions} bonus={slip.bonus} />
+        ) : null}
       </Card>
       <p className="mt-3 text-sm text-ink-2">
         {`Jours non prestés par défaut : ${WEEKDAY_NAMES.filter((_, i) => !calc.settings.workDays.includes(i + 1)).join(', ') || 'aucun'}.`}

@@ -1,7 +1,17 @@
 // Fiche de paie au format PDF (A4) : une page par mois, suite éventuelle si
 // le contenu déborde. Chargé à la demande, comme les autres exports.
 import { todayIn } from '../domain/dates.ts'
-import { capitalize, formatDateNumeric, formatHours, formatMonth, formatNumber, formatPercent, formatRs, monthShort } from '../domain/format.ts'
+import {
+  capitalize,
+  formatDateNumeric,
+  formatHours,
+  formatMonth,
+  formatMonthRange,
+  formatNumber,
+  formatPercent,
+  formatRs,
+  monthShort,
+} from '../domain/format.ts'
 import { type Payslip, computePayslip } from '../domain/payslip.ts'
 import { STATUS } from '../domain/status.ts'
 import type { CalcContext, IsoDate, IsoMonth, Settings, StatusCode } from '../domain/types.ts'
@@ -159,6 +169,8 @@ interface Row {
   cells: string[]
   /** Seconde ligne, plus petite, sous la première cellule. */
   note?: string
+  /** Nombre de colonnes que la note peut occuper (2 par défaut). */
+  noteSpan?: number
 }
 
 function cellX(columns: Column[], index: number): number {
@@ -208,8 +220,8 @@ function drawTable(flow: Flow, columns: Column[], rows: Row[], total: string[]):
     const y = flow.y
     drawCells(page, columns, y + 12.5, row.cells, 'regular', 9.5, INK)
     if (row.note) {
-      // La note occupe la place libre sous les deux premières colonnes.
-      const noteWidth = columns[0]!.width + (columns[1]?.width ?? 0) - CELL_PADDING * 2
+      // La note occupe la place libre sous les premières colonnes.
+      const noteWidth = columns.slice(0, row.noteSpan ?? 2).reduce((sum, column) => sum + column.width, 0) - CELL_PADDING * 2
       page.text(cellX(columns, 0), y + 21.5, fitText(row.note, 'regular', 7.5, noteWidth), { size: 7.5, color: INK_3 })
     }
     page.line(MARGIN, y + height, RIGHT, y + height, { color: LINE, width: 0.6 })
@@ -229,15 +241,26 @@ function drawEarnings(flow: Flow, slip: Payslip): void {
     { header: 'Taux', width: 80, align: 'right' },
     { header: 'Montant', width: 90, align: 'right' },
   ]
-  const rows: Row[] = slip.earnings.map((line) => ({
-    cells: [
-      line.label,
-      String(line.days),
-      line.unit === 'hour' ? formatHours(line.hours) : '',
-      `${money(Math.round(line.rate * 100))} / ${line.unit === 'hour' ? 'h' : 'jour'}`,
-      money(line.amountCents),
-    ],
-  }))
+  const { bonus } = slip
+  const rows: Row[] = slip.earnings.map((line) =>
+    line.unit === 'bonus' && bonus
+      ? {
+          cells: [line.label, '', '', '1/12', money(line.amountCents)],
+          note:
+            `${bonus.base === 'gross' ? 'Gains' : 'Salaire de base'} de ${formatMonthRange(bonus.months)} : ${money(bonus.earningsCents)}` +
+            ` · 75 % au plus tard le ${formatDateNumeric(bonus.advanceBy)}, le solde le ${formatDateNumeric(bonus.balanceBy)}`,
+          noteSpan: 4,
+        }
+      : {
+          cells: [
+            line.label,
+            String(line.days),
+            line.unit === 'hour' ? formatHours(line.hours) : '',
+            `${money(Math.round(line.rate * 100))} / ${line.unit === 'hour' ? 'h' : 'jour'}`,
+            money(line.amountCents),
+          ],
+        },
+  )
   if (rows.length === 0) rows.push({ cells: ['Aucune heure payée ce mois-ci', '', '', '', money(0)] })
   drawTable(flow, columns, rows, ['Salaire brut', '', '', '', money(slip.grossCents)])
 }
@@ -255,14 +278,14 @@ function drawContributions(flow: Flow, slip: Payslip): void {
   const share = (cents: number, value: number) => (value > 0 ? money(cents) : '–')
   const rows: Row[] = slip.contributions.map((line) => ({
     cells: [
-      line.label,
+      line.bonus ? `${line.label} sur le bonus` : line.label,
       money(line.baseCents),
       rate(line.employeeRate),
       share(line.employeeCents, line.employeeRate),
       rate(line.employerRate),
       share(line.employerCents, line.employerRate),
     ],
-    note: line.description || undefined,
+    note: line.bonus ? 'Part salaire de base du bonus de fin d’année' : line.description || undefined,
   }))
   if (rows.length === 0) rows.push({ cells: ['Aucune cotisation ce mois-ci', '', '', '', '', ''] })
   drawTable(flow, columns, rows, ['Total des cotisations', '', '', money(slip.employeeCents), '', money(slip.employerCents)])
@@ -323,7 +346,11 @@ function presenceFigures(slip: Payslip): Figure[] {
 
 function costFigures(slip: Payslip): Figure[] {
   return [
-    { label: 'Salaire brut', value: money(slip.grossCents) },
+    {
+      label: 'Salaire brut',
+      value: money(slip.grossCents),
+      note: slip.bonusCents ? `Dont bonus de fin d’année : ${money(slip.bonusCents)}` : undefined,
+    },
     { label: 'Cotisations patronales', value: money(slip.employerCents) },
     { label: 'Coût total employeur', value: money(slip.costCents), strong: true },
     {

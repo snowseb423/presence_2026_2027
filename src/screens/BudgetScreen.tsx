@@ -113,7 +113,9 @@ function MonthBlock({ summary, slip, calc, open }: { summary: MonthSummary; slip
       </summary>
       <div className="border-t border-line px-4 pb-4 pt-1">
         <Figures totals={summary} workDays={calc.settings.workDays} />
-        {slip.contributions.length ? <PayrollFigures payroll={slip} contributions={slip.contributions} /> : null}
+        {slip.contributions.length || slip.bonus ? (
+          <PayrollFigures payroll={slip} contributions={slip.contributions} bonus={slip.bonus} />
+        ) : null}
         <div className="mt-3">
           <ExportButtons scope={{ kind: 'month', month: summary.month }} calc={calc} label={`Exporter ${formatMonth(summary.month)}`} />
           <IdentityReminder settings={calc.settings} />
@@ -129,7 +131,7 @@ export function BudgetScreen({ calc, today }: { calc: CalcContext; today: IsoDat
   const { settings } = calc
   const total = period.totals
   const payslips = new Map(period.months.map((summary) => [summary.month, computePayslip(summary.month, calc, summary)]))
-  const withContributions = [...payslips.values()].some((slip) => slip.contributions.length > 0)
+  const withContributions = [...payslips.values()].some((slip) => slip.contributions.length > 0 || slip.bonus)
 
   const hero = (
     <div>

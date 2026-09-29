@@ -132,6 +132,34 @@ test('fiche de paie : identités et cotisations dans Réglages, net du mois, PDF
   expect(pdf).toContain('(Famille Lefèvre) Tj')
 })
 
+test('bonus de fin d’année : sur la fiche de décembre, désactivable dans Réglages', async ({ page }) => {
+  await page.goto('/budget')
+  const december = page.locator('details', { has: page.getByRole('heading', { name: 'Décembre 2026' }) })
+  await december.locator('summary').click()
+  // Brut de septembre à décembre 2026 : Rs 47 430, soit un bonus de Rs 3 952,50 ;
+  // CSG à part sur le bonus : net Rs 12 276 + 3 952,50 − (168 + 112 + 54).
+  await expect(december).toContainText('Bonus de fin d’année')
+  await expect(december).toContainText('+Rs 3 952,50')
+  await expect(december).toContainText('Rs 15 894,50')
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    december.getByRole('button', { name: 'Fiche de paie décembre 2026 en PDF' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('fiche-de-paie-2026-12.pdf')
+  const pdf = new TextDecoder('windows-1252').decode(readFileSync(await download.path()))
+  expect(pdf).toContain('(Bonus de fin d’année) Tj')
+  expect(pdf).toContain('(CSG sur le bonus) Tj')
+
+  const nav = page.getByRole('navigation', { name: 'Navigation principale' })
+  await nav.getByRole('link', { name: 'Réglages' }).click()
+  await page.getByRole('switch', { name: 'Bonus de fin d’année sur la fiche de décembre' }).click()
+  await nav.getByRole('link', { name: 'Budget' }).click()
+  await december.locator('summary').click()
+  await expect(december).toContainText('NET À PAYER')
+  await expect(december).not.toContainText('Bonus de fin d’année')
+})
+
 test('mode avion : l’app s’ouvre depuis le cache, affiche le mois et accepte une saisie', async ({ page, context }) => {
   await page.goto('/')
   await expect(page.getByText('Changer le statut')).toBeVisible()

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_HOLIDAYS, DEFAULT_SETTINGS, DEFAULT_STATUS_RULES } from '../../src/domain/defaults.ts'
+import { sanitizeContributions } from '../../src/domain/payslip.ts'
 
 const root = join(import.meta.dirname, '..', '..')
 const read = (path: string) => readFileSync(join(root, path), 'utf8')
@@ -29,10 +30,12 @@ describe('parité seed SQL ↔ src/domain/defaults.ts', async () => {
              employer_name as "employerName", employer_address as "employerAddress",
              employer_phone as "employerPhone", employer_email as "employerEmail",
              employer_registration as "employerRegistration", pay_day::int as "payDay",
-             round_contributions as "roundContributions", contributions
+             round_contributions as "roundContributions", contributions,
+             end_of_year_bonus as "endOfYearBonus", end_of_year_bonus_base as "endOfYearBonusBase"
       from public.settings`)
     const { updatedAt: _a, updatedBy: _b, ...expected } = DEFAULT_SETTINGS
-    expect(rows).toEqual([expected])
+    // Cotisations telles que l'app les lit (« due sur le bonus » complété par défaut).
+    expect(rows.map((row) => ({ ...row, contributions: sanitizeContributions(row.contributions) }))).toEqual([expected])
   })
 
   it('statuts', async () => {
